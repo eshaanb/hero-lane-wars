@@ -1,0 +1,24 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/Units/UnitRenderer.cs" id="1"]
+[ext_resource type="Texture2D" path="res://assets/sprites/units/footman_blue.png" id="2"]
+
+[node name="Unit" type="Node2D"]
+script = ExtResource("1")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+texture = ExtResource("2")
+
+[node name="HealthBarBg" type="ColorRect" parent="."]
+offset_left = -8.0
+offset_top = -14.0
+offset_right = 8.0
+offset_bottom = -12.0
+color = Color(0.2, 0.2, 0.2, 1)
+
+[node name="HealthBarFill" type="ColorRect" parent="."]
+offset_left = -8.0
+offset_top = -14.0
+offset_right = 8.0
+offset_bottom = -12.0
+color = Color(0, 1, 0, 1)

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="GameConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/Core/GameConfig.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+StartingGold = 100
+BaseIncomePerTick = 10
+IncomeTickMs = 10000
+BaseHpPerLane = 50
+BuildZoneWidth = 8
+BuildZoneHeight = 4
+SimTickMs = 100
+LaneLengthUnits = 1000

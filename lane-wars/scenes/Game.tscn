@@ -1,0 +1,45 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://src/Core/GameManager.cs" id="1"]
+[ext_resource type="Script" path="res://src/Core/LaneRenderer.cs" id="2"]
+[ext_resource type="Script" path="res://src/Buildings/BuildZoneRenderer.cs" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/UI/HUD.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://scenes/UI/BuildingPanel.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/UI/EndGameOverlay.tscn" id="6"]
+
+[node name="Game" type="Node2D"]
+script = ExtResource("1")
+
+[node name="Camera" type="Camera2D" parent="."]
+position = Vector2(640, 360)
+
+[node name="Lane" type="Node2D" parent="."]
+script = ExtResource("2")
+
+[node name="Units" type="Node2D" parent="Lane"]
+
+[node name="Player1Side" type="Node2D" parent="."]
+position = Vector2(16, 200)
+
+[node name="BuildZoneVisual" type="Node2D" parent="Player1Side"]
+script = ExtResource("3")
+
+[node name="Base" type="Sprite2D" parent="Player1Side"]
+position = Vector2(-40, 64)
+
+[node name="Player2Side" type="Node2D" parent="."]
+position = Vector2(1040, 200)
+
+[node name="BuildZoneVisual" type="Node2D" parent="Player2Side"]
+script = ExtResource("3")
+
+[node name="Base" type="Sprite2D" parent="Player2Side"]
+position = Vector2(296, 64)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="HUD" parent="UI" instance=ExtResource("4")]
+
+[node name="BuildingPanel" parent="UI" instance=ExtResource("5")]
+
+[node name="EndGameOverlay" parent="UI" instance=ExtResource("6")]
