@@ -12,7 +12,8 @@ public static class TestLaneSimulation
     {
         TestUnitWalks();
         TestUnitsEngageAndFight();
-        TestUnitLeaks();
+        TestUnitAttacksTowerAtLaneEnd();
+        TestTowerRetaliatesAgainstNearbyEnemy();
         Console.WriteLine("All LaneSimulation tests passed!");
     }
 
@@ -61,10 +62,10 @@ public static class TestLaneSimulation
         Assert(anyDead, $"At least one unit should have died, but {lane.Units.Count} remain");
     }
 
-    private static void TestUnitLeaks()
+    private static void TestUnitAttacksTowerAtLaneEnd()
     {
         var lane = new LaneSimulation(1000);
-        // Fast unit at position 990 moving right -- should leak next tick
+        // Fast unit at position 990 moving right -- should reach the tower next tick and hit it.
         lane.SpawnUnit(new UnitSpawnRequest
         {
             OwnerPlayer = 0, Hp = 100, Damage = 10, AttackCooldownMs = 1000,
@@ -72,11 +73,29 @@ public static class TestLaneSimulation
             Direction = 1, StartPositionX = 990
         });
 
-        var leaks = lane.Tick(100);
-        // Speed 200, tick 100ms = 20 units of movement. 990 + 20 = 1010 >= 1000 => leak
-        Assert(leaks.Count > 0, "Unit should have leaked");
-        Assert(leaks[0].Player == 1, "Leak should damage player 1");
-        Assert(leaks[0].Damage == 100, $"Full HP leak should be 100%, got {leaks[0].Damage}");
+        var towerHits = lane.Tick(100);
+        Assert(lane.Units.Count == 1, "Unit should remain alive at the enemy tower");
+        Assert(lane.Units[0].PositionX == 1000, $"Unit should stop at the tower, got {lane.Units[0].PositionX}");
+        Assert(towerHits.Count > 0, "Unit should have hit the enemy tower");
+        Assert(towerHits[0].Player == 1, "Tower hit should damage player 1");
+        Assert(towerHits[0].Damage == 10, $"Tower hit should use unit damage, got {towerHits[0].Damage}");
+    }
+
+    private static void TestTowerRetaliatesAgainstNearbyEnemy()
+    {
+        var lane = new LaneSimulation(1000, towerAttackDamage: 25, towerAttackCooldownMs: 100, towerAttackRange: 120);
+        lane.SpawnUnit(new UnitSpawnRequest
+        {
+            OwnerPlayer = 1, Hp = 100, Damage = 10, AttackCooldownMs = 1000,
+            MoveSpeed = 0, Range = 0, ArmorType = 0, DamageType = 0,
+            Direction = -1, StartPositionX = 60
+        });
+
+        lane.Tick(100);
+
+        Assert(lane.Units.Count == 1, "Tower should damage but not kill the unit on the first shot");
+        Assert(lane.Units[0].Hp == 75, $"Tower should deal 25 damage, got unit HP {lane.Units[0].Hp}");
+        Assert(lane.GetTowerTargetUnitId(0) == lane.Units[0].UnitId, "Player 0 tower should target the nearby enemy unit");
     }
 
     private static void Assert(bool condition, string message)

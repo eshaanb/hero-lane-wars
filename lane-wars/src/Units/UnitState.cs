@@ -17,14 +17,19 @@ public class UnitState
     public int Range;
     public int ArmorType;
     public int DamageType;
+    public int TowerDamageMultiplierPct;
     public int PositionX;           // 1D lane position (integer)
     public int Direction;           // +1 (toward enemy base) or -1
     public int TargetUnitId;        // -1 if no target
+    public int RecentAttackMs;      // short-lived visual flag for hit flashes
+    public string SpritePath;       // resource path carried through sim for rendering
     public bool IsAlive;
 
     public UnitState()
     {
         TargetUnitId = -1;
+        RecentAttackMs = 0;
+        SpritePath = "";
         IsAlive = true;
     }
 }

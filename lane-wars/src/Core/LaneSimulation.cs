@@ -5,15 +5,15 @@ using System.Collections.Generic;
 using LaneWars.Units;
 using LaneWars.Buildings;
 
-public struct LeakDamage
+public struct TowerDamage
 {
-    public int Player;  // which player's base takes damage
+    public int Player;  // which player's tower takes damage
     public int Damage;
 }
 
 /// <summary>
 /// Heart of the game: owns all units in a single lane and runs the
-/// move -> acquire -> attack -> leak -> sweep pipeline each tick.
+/// move -> acquire -> attack -> tower pressure -> sweep pipeline each tick.
 /// Pure C#, no Godot dependencies. Integer math only.
 /// </summary>
 public class LaneSimulation
@@ -21,15 +21,43 @@ public class LaneSimulation
     private readonly List<UnitState> _units = new();
     private int _nextUnitId = 0;
     private readonly int _laneLengthUnits;
+    private readonly int[] _towerAttackDamage = new int[2];
+    private readonly int[] _towerAttackCooldownMs = new int[2];
+    private readonly int[] _towerAttackRange = new int[2];
+    private readonly int[] _towerAttackTimerMs = new int[2];
+    private readonly int[] _towerTargetUnitId = new int[2] { -1, -1 };
+    private readonly int[] _towerRecentAttackMs = new int[2];
     private const int MeleeRange = 50;
 
     public IReadOnlyList<UnitState> Units => _units;
     public int LaneLengthUnits => _laneLengthUnits;
 
-    public LaneSimulation(int laneLengthUnits)
+    public LaneSimulation(
+        int laneLengthUnits,
+        int towerAttackDamage = 0,
+        int towerAttackCooldownMs = 0,
+        int towerAttackRange = 0,
+        int[]? towerAttackDamageByPlayer = null,
+        int[]? towerAttackCooldownMsByPlayer = null,
+        int[]? towerAttackRangeByPlayer = null)
     {
         _laneLengthUnits = laneLengthUnits;
+        for (int player = 0; player < 2; player++)
+        {
+            _towerAttackDamage[player] = towerAttackDamageByPlayer != null && player < towerAttackDamageByPlayer.Length
+                ? towerAttackDamageByPlayer[player]
+                : towerAttackDamage;
+            _towerAttackCooldownMs[player] = towerAttackCooldownMsByPlayer != null && player < towerAttackCooldownMsByPlayer.Length
+                ? towerAttackCooldownMsByPlayer[player]
+                : towerAttackCooldownMs;
+            _towerAttackRange[player] = towerAttackRangeByPlayer != null && player < towerAttackRangeByPlayer.Length
+                ? towerAttackRangeByPlayer[player]
+                : towerAttackRange;
+        }
     }
+
+    public int GetTowerTargetUnitId(int player) => player >= 0 && player <= 1 ? _towerTargetUnitId[player] : -1;
+    public int GetTowerRecentAttackMs(int player) => player >= 0 && player <= 1 ? _towerRecentAttackMs[player] : 0;
 
     /// <summary>
     /// Spawn a unit from a UnitSpawnRequest. Returns the assigned unit ID.
@@ -50,9 +78,12 @@ public class LaneSimulation
             Range = req.Range,
             ArmorType = req.ArmorType,
             DamageType = req.DamageType,
+            TowerDamageMultiplierPct = req.TowerDamageMultiplierPct > 0 ? req.TowerDamageMultiplierPct : 100,
             PositionX = req.StartPositionX,
             Direction = req.Direction,
             TargetUnitId = -1,
+            RecentAttackMs = 0,
+            SpritePath = req.SpritePath,
             IsAlive = true
         };
         _units.Add(unit);
@@ -60,10 +91,10 @@ public class LaneSimulation
     }
 
     /// <summary>
-    /// Execute one simulation tick. Returns any leak damage that occurred.
-    /// Steps: Move -> Acquire targets -> Attack -> Detect leaks -> Mark-and-sweep removal.
+    /// Execute one simulation tick. Returns any tower damage that occurred.
+    /// Steps: Move -> Acquire targets -> Attack -> Tower attack -> Mark-and-sweep removal.
     /// </summary>
-    public List<LeakDamage> Tick(int tickMs)
+    public List<TowerDamage> Tick(int tickMs)
     {
         // ── Step 1: Move ──
         // Units with no target move along the lane.
@@ -73,10 +104,31 @@ public class LaneSimulation
             if (!unit.IsAlive)
                 continue;
 
+            if (unit.RecentAttackMs > 0)
+            {
+                unit.RecentAttackMs -= tickMs;
+                if (unit.RecentAttackMs < 0)
+                    unit.RecentAttackMs = 0;
+            }
+
             if (unit.TargetUnitId == -1)
             {
                 int delta = unit.MoveSpeed * tickMs / 1000;
                 unit.PositionX += delta * unit.Direction;
+                if (unit.PositionX < 0)
+                    unit.PositionX = 0;
+                if (unit.PositionX > _laneLengthUnits)
+                    unit.PositionX = _laneLengthUnits;
+            }
+        }
+
+        for (int player = 0; player < 2; player++)
+        {
+            if (_towerRecentAttackMs[player] > 0)
+            {
+                _towerRecentAttackMs[player] -= tickMs;
+                if (_towerRecentAttackMs[player] < 0)
+                    _towerRecentAttackMs[player] = 0;
             }
         }
 
@@ -164,11 +216,12 @@ public class LaneSimulation
 
                 // Reset the cooldown timer
                 unit.AttackTimerMs = unit.AttackCooldownMs;
+                unit.RecentAttackMs = 120;
             }
         }
 
-        // ── Step 4: Detect leaks ──
-        List<LeakDamage> leaks = new();
+        // ── Step 4: Tower takes damage from units at lane endpoints ──
+        List<TowerDamage> towerHits = new();
         List<int> removeIds = new();
 
         for (int i = 0; i < _units.Count; i++)
@@ -180,33 +233,32 @@ public class LaneSimulation
                 continue;
             }
 
-            bool leaked = false;
+            bool atEnemyTower =
+                (unit.Direction > 0 && unit.PositionX >= _laneLengthUnits) ||
+                (unit.Direction < 0 && unit.PositionX <= 0);
 
-            // Player 0 units (direction +1) leak at >= laneLengthUnits → damage player 1
-            if (unit.Direction > 0 && unit.PositionX >= _laneLengthUnits)
-            {
-                int dmg = unit.Hp * 100 / unit.MaxHp;
-                if (dmg < 1) dmg = 1;
-                leaks.Add(new LeakDamage { Player = 1, Damage = dmg });
-                leaked = true;
-            }
-            // Player 1 units (direction -1) leak at <= 0 → damage player 0
-            else if (unit.Direction < 0 && unit.PositionX <= 0)
-            {
-                int dmg = unit.Hp * 100 / unit.MaxHp;
-                if (dmg < 1) dmg = 1;
-                leaks.Add(new LeakDamage { Player = 0, Damage = dmg });
-                leaked = true;
-            }
+            if (!atEnemyTower || unit.TargetUnitId != -1)
+                continue;
 
-            if (leaked)
-            {
-                unit.IsAlive = false;
-                removeIds.Add(unit.UnitId);
-            }
+            unit.AttackTimerMs -= tickMs;
+            if (unit.AttackTimerMs > 0)
+                continue;
+
+            int targetPlayer = unit.Direction > 0 ? 1 : 0;
+            int towerDamage = unit.Damage * unit.TowerDamageMultiplierPct / 100;
+            if (towerDamage < 1)
+                towerDamage = 1;
+
+            towerHits.Add(new TowerDamage { Player = targetPlayer, Damage = towerDamage });
+            unit.AttackTimerMs = unit.AttackCooldownMs;
+            unit.RecentAttackMs = 120;
         }
 
-        // ── Step 5: Mark-and-sweep removal ──
+        // ── Step 5: Towers retaliate against nearby enemy units ──
+        ProcessTowerAttack(0, 1, 0, tickMs);
+        ProcessTowerAttack(1, 0, _laneLengthUnits, tickMs);
+
+        // ── Step 6: Mark-and-sweep removal ──
         // Collect dead units (from combat) that weren't already added
         for (int i = 0; i < _units.Count; i++)
         {
@@ -241,7 +293,57 @@ public class LaneSimulation
             }
         }
 
-        return leaks;
+        return towerHits;
+    }
+
+    private void ProcessTowerAttack(int towerOwner, int enemyOwner, int towerPosition, int tickMs)
+    {
+        _towerTargetUnitId[towerOwner] = -1;
+
+        if (_towerAttackDamage[towerOwner] <= 0 || _towerAttackCooldownMs[towerOwner] <= 0 || _towerAttackRange[towerOwner] <= 0)
+            return;
+
+        if (_towerAttackTimerMs[towerOwner] > 0)
+        {
+            _towerAttackTimerMs[towerOwner] -= tickMs;
+            if (_towerAttackTimerMs[towerOwner] < 0)
+                _towerAttackTimerMs[towerOwner] = 0;
+        }
+
+        UnitState? target = null;
+        int bestDistance = int.MaxValue;
+
+        for (int i = 0; i < _units.Count; i++)
+        {
+            UnitState candidate = _units[i];
+            if (!candidate.IsAlive || candidate.OwnerPlayer != enemyOwner)
+                continue;
+
+            int dist = Math.Abs(candidate.PositionX - towerPosition);
+            if (dist > _towerAttackRange[towerOwner])
+                continue;
+
+            if (dist < bestDistance)
+            {
+                bestDistance = dist;
+                target = candidate;
+            }
+        }
+
+        if (target == null)
+            return;
+
+        _towerTargetUnitId[towerOwner] = target.UnitId;
+
+        if (_towerAttackTimerMs[towerOwner] > 0)
+            return;
+
+        target.Hp -= _towerAttackDamage[towerOwner];
+        if (target.Hp <= 0)
+            target.IsAlive = false;
+
+        _towerAttackTimerMs[towerOwner] = _towerAttackCooldownMs[towerOwner];
+        _towerRecentAttackMs[towerOwner] = 120;
     }
 
     /// <summary>Find a unit by ID using ordered linear search.</summary>

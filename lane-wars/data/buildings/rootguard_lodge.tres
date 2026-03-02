@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="BuildingData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/Buildings/BuildingData.cs" id="1"]
+[ext_resource type="Resource" path="res://data/units/treant_guard.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+BuildingName = "Rootguard Lodge"
+RequiredBuildingNames = PackedStringArray("Grove Hall")
+UnlocksBuildingNames = PackedStringArray()
+GoldCost = 60
+GridWidth = 1
+GridHeight = 1
+SpawnedUnit = ExtResource("2")
+IsEconomyBuilding = false
+IncomeBonus = 0
+SupportDamageBonus = 0
+SpritePath = "res://assets/sprites/buildings/war_academy.png"

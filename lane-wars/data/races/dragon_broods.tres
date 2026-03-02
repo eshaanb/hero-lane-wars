@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="RaceData" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://src/Core/RaceData.cs" id="1"]
+[ext_resource type="Resource" path="res://data/buildings/brood_nest.tres" id="2"]
+[ext_resource type="Resource" path="res://data/buildings/scale_roost.tres" id="3"]
+[ext_resource type="Resource" path="res://data/buildings/ember_crucible.tres" id="4"]
+[ext_resource type="Resource" path="res://data/buildings/molten_shrine.tres" id="5"]
+[ext_resource type="Resource" path="res://data/buildings/hoard_vault.tres" id="6"]
+
+[resource]
+script = ExtResource("1")
+RaceName = "Dragon Broods"
+Description = "Elite mythical predators with volatile towers and late-game objective pressure."
+TowerName = "Ember Roost"
+TowerHp = 390
+TowerAttackDamage = 34
+TowerAttackCooldownMs = 1400
+TowerAttackRange = 260
+TowerSpritePath = "res://assets/sprites/buildings/tower_dragon.png"
+AvailableBuildings = Array[Resource]([ExtResource("2"), ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])

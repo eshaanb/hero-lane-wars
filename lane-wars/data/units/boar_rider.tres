@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/Units/UnitData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+UnitName = "Boar Rider"
+UnitRole = "Tank"
+Hp = 210
+Damage = 22
+AttackCooldownMs = 1100
+MoveSpeedUnits = 70
+Range = 0
+ArmorType = 2
+DamageType = 0
+SpawnTimeMs = 5000
+TowerDamageMultiplierPct = 100
+SpritePath = "res://assets/sprites/units/knight_blue.png"

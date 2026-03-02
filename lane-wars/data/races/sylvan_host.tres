@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="RaceData" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://src/Core/RaceData.cs" id="1"]
+[ext_resource type="Resource" path="res://data/buildings/grove_hall.tres" id="2"]
+[ext_resource type="Resource" path="res://data/buildings/starbloom_range.tres" id="3"]
+[ext_resource type="Resource" path="res://data/buildings/rootguard_lodge.tres" id="4"]
+[ext_resource type="Resource" path="res://data/buildings/moonwell.tres" id="5"]
+[ext_resource type="Resource" path="res://data/buildings/wind_shrine.tres" id="6"]
+
+[resource]
+script = ExtResource("1")
+RaceName = "Sylvan Host"
+Description = "Precision-focused elves with long-ranged tower fire and flexible opening branches."
+TowerName = "Worldroot Spire"
+TowerHp = 360
+TowerAttackDamage = 14
+TowerAttackCooldownMs = 700
+TowerAttackRange = 320
+TowerSpritePath = "res://assets/sprites/buildings/tower_elf.png"
+AvailableBuildings = Array[Resource]([ExtResource("2"), ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])

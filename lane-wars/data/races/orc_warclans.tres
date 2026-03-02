@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="RaceData" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://src/Core/RaceData.cs" id="1"]
+[ext_resource type="Resource" path="res://data/buildings/war_hut.tres" id="2"]
+[ext_resource type="Resource" path="res://data/buildings/beast_pen.tres" id="3"]
+[ext_resource type="Resource" path="res://data/buildings/blood_forge.tres" id="4"]
+[ext_resource type="Resource" path="res://data/buildings/scrap_pound.tres" id="5"]
+[ext_resource type="Resource" path="res://data/buildings/plunder_pile.tres" id="6"]
+
+[resource]
+script = ExtResource("1")
+RaceName = "Orc Warclans"
+Description = "Aggressive bruisers with brutal close-range towers that reward constant pressure."
+TowerName = "War Totem Keep"
+TowerHp = 430
+TowerAttackDamage = 28
+TowerAttackCooldownMs = 900
+TowerAttackRange = 180
+TowerSpritePath = "res://assets/sprites/buildings/tower_orc.png"
+AvailableBuildings = Array[Resource]([ExtResource("2"), ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])

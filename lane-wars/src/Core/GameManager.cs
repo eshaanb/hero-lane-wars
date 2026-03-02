@@ -10,7 +10,15 @@ namespace LaneWars.Core;
 public partial class GameManager : Node2D
 {
     [Export] public GameConfig Config { get; set; } = null!;
+    [Export] public RaceData[] AvailableRaces { get; set; } = System.Array.Empty<RaceData>();
+    [Export] public RaceData? PlayerRace { get; set; }
+    [Export] public RaceData? EnemyRace { get; set; }
     [Export] public BuildingData BarracksData { get; set; } = null!;
+    [Export] public BuildingData? ArcheryRangeData { get; set; }
+    [Export] public BuildingData? ArmoryData { get; set; }
+    [Export] public BuildingData? SiegeWorkshopData { get; set; }
+    [Export] public BuildingData? ForgeData { get; set; }
+    [Export] public BuildingData? EconomyBuildingData { get; set; }
 
     private MatchSimulation _sim = null!;
     private double _accumulator;
@@ -22,6 +30,11 @@ public partial class GameManager : Node2D
     private HUD _hud = null!;
     private BuildingPanel _buildingPanel = null!;
     private EndGameOverlay _endGameOverlay = null!;
+    private RaceSelectOverlay _raceSelectOverlay = null!;
+    private Sprite2D _p1TowerSprite = null!;
+    private Sprite2D _p2TowerSprite = null!;
+    private ProgressBar _p1TowerHpBar = null!;
+    private ProgressBar _p2TowerHpBar = null!;
 
     // AI
     private SimpleAI _ai = null!;
@@ -30,39 +43,48 @@ public partial class GameManager : Node2D
     private BuildingData? _selectedBuilding;
     private bool _isPlacing;
     private bool _matchEnded;
+    private bool _matchStarted;
 
     public MatchSimulation Sim => _sim;
 
     public override void _Ready()
     {
-        _sim = new MatchSimulation(
-            Config.StartingGold, Config.BaseIncomePerTick, Config.IncomeTickMs,
-            Config.BaseHpPerLane, Config.BuildZoneWidth, Config.BuildZoneHeight,
-            Config.SimTickMs, Config.LaneLengthUnits);
-
         _laneRenderer = GetNode<LaneRenderer>("Lane");
         _p1BuildZone = GetNode<BuildZoneRenderer>("Player1Side/BuildZoneVisual");
         _p2BuildZone = GetNode<BuildZoneRenderer>("Player2Side/BuildZoneVisual");
         _hud = GetNode<HUD>("UI/HUD");
         _buildingPanel = GetNode<BuildingPanel>("UI/BuildingPanel");
         _endGameOverlay = GetNode<EndGameOverlay>("UI/EndGameOverlay");
+        _raceSelectOverlay = GetNode<RaceSelectOverlay>("UI/RaceSelectOverlay");
+        _p1TowerSprite = GetNode<Sprite2D>("Player1Side/Base");
+        _p2TowerSprite = GetNode<Sprite2D>("Player2Side/Base");
+        _p1TowerHpBar = GetNode<ProgressBar>("Player1Side/TowerHpBar");
+        _p2TowerHpBar = GetNode<ProgressBar>("Player2Side/TowerHpBar");
 
-        _laneRenderer.Initialize(_sim);
         _p1BuildZone.Initialize(Config.BuildZoneWidth, Config.BuildZoneHeight);
         _p2BuildZone.Initialize(Config.BuildZoneWidth, Config.BuildZoneHeight);
-        _buildingPanel.Initialize(_sim, 0);
 
         // Wire UI events
-        _buildingPanel.BuildingClicked += OnBuildingSelected;
         _endGameOverlay.PlayAgainPressed += OnPlayAgain;
+        _raceSelectOverlay.RaceSelected += OnRaceSelected;
 
-        // Create AI for player 1
-        var barracksInfo = BuildingDataToBuildingInfo(BarracksData);
-        _ai = new SimpleAI(12345, barracksInfo, Config.BuildZoneWidth, Config.BuildZoneHeight);
+        if (AvailableRaces.Length > 0)
+        {
+            _buildingPanel.Visible = false;
+            _hud.SetRaceNames("Select", "Pending");
+            _raceSelectOverlay.Initialize(AvailableRaces);
+        }
+        else
+        {
+            StartMatchWithRaces(PlayerRace, EnemyRace);
+        }
     }
 
     public override void _Process(double delta)
     {
+        if (!_matchStarted)
+            return;
+
         if (_matchEnded) return;
 
         // Fixed timestep accumulator
@@ -75,9 +97,13 @@ public partial class GameManager : Node2D
         }
 
         // Update renderers
+        UpdatePlacementPreview();
         _laneRenderer.SyncFromSim(_sim);
         _hud.UpdateDisplay(_sim, 0); // Player 0 is human
+        UpdateTowerVisuals();
         _buildingPanel.UpdateAffordability(_sim, 0);
+        _p1BuildZone.RefreshVisuals(_sim, 0);
+        _p2BuildZone.RefreshVisuals(_sim, 1);
 
         // Check for match end
         if (_sim.IsMatchOver())
@@ -89,9 +115,15 @@ public partial class GameManager : Node2D
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (@event is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Left && _isPlacing && _selectedBuilding != null)
+        if (!_matchStarted)
+            return;
+
+        if (@event is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Left)
         {
-            TryPlaceBuilding(mb.GlobalPosition);
+            if (_isPlacing && _selectedBuilding != null)
+            {
+                TryPlaceBuilding(GetGlobalMousePosition());
+            }
         }
         if (@event is InputEventKey key && key.Pressed && key.Keycode == Key.Escape)
         {
@@ -103,6 +135,7 @@ public partial class GameManager : Node2D
     {
         _selectedBuilding = data;
         _isPlacing = true;
+        _buildingPanel.SetSelectedBuilding(data);
     }
 
     private void TryPlaceBuilding(Vector2 mousePos)
@@ -123,6 +156,8 @@ public partial class GameManager : Node2D
     {
         _selectedBuilding = null;
         _isPlacing = false;
+        _p1BuildZone.ClearPreview();
+        _buildingPanel.SetSelectedBuilding(null);
     }
 
     private void OnPlayAgain()
@@ -130,15 +165,27 @@ public partial class GameManager : Node2D
         GetTree().ReloadCurrentScene();
     }
 
+    private void OnRaceSelected(RaceData selectedRace)
+    {
+        RaceData enemyRace = ChooseEnemyRace(selectedRace);
+        _raceSelectOverlay.Close();
+        StartMatchWithRaces(selectedRace, enemyRace);
+    }
+
     public static BuildingInfo BuildingDataToBuildingInfo(BuildingData data)
     {
         var info = new BuildingInfo
         {
+            BuildingName = data.BuildingName,
+            RequiredBuildingNames = data.RequiredBuildingNames,
+            UnlocksBuildingNames = data.UnlocksBuildingNames,
             GoldCost = data.GoldCost,
             GridWidth = data.GridWidth,
             GridHeight = data.GridHeight,
             IsEconomyBuilding = data.IsEconomyBuilding,
             IncomeBonus = data.IncomeBonus,
+            SupportDamageBonus = data.SupportDamageBonus,
+            BuildingSpritePath = data.SpritePath,
         };
         if (data.SpawnedUnit != null)
         {
@@ -150,7 +197,207 @@ public partial class GameManager : Node2D
             info.UnitArmorType = (int)data.SpawnedUnit.ArmorType;
             info.UnitDamageType = (int)data.SpawnedUnit.DamageType;
             info.SpawnTimeMs = data.SpawnedUnit.SpawnTimeMs;
+            info.UnitSpritePath = data.SpawnedUnit.SpritePath;
+            info.UnitTowerDamageMultiplierPct = data.SpawnedUnit.TowerDamageMultiplierPct;
         }
         return info;
+    }
+
+    private void UpdatePlacementPreview()
+    {
+        if (!_isPlacing || _selectedBuilding == null)
+        {
+            _p1BuildZone.ClearPreview();
+            return;
+        }
+
+        var (gridX, gridY) = _p1BuildZone.WorldToGrid(GetGlobalMousePosition());
+        if (gridX < 0 || gridY < 0)
+        {
+            _p1BuildZone.ClearPreview();
+            return;
+        }
+
+        bool canPlace = _sim.CanPlaceBuilding(
+            0,
+            gridX,
+            gridY,
+            _selectedBuilding.GridWidth,
+            _selectedBuilding.GridHeight) &&
+            _sim.GetGold(0) >= _selectedBuilding.GoldCost;
+
+        _p1BuildZone.SetPreview(
+            gridX,
+            gridY,
+            _selectedBuilding.GridWidth,
+            _selectedBuilding.GridHeight,
+            canPlace);
+    }
+
+    private void UpdateTowerVisuals()
+    {
+        if (!_matchStarted)
+            return;
+        UpdateTowerVisual(_p1TowerSprite, _p1TowerHpBar, _sim.GetTowerHp(0));
+        UpdateTowerVisual(_p2TowerSprite, _p2TowerHpBar, _sim.GetTowerHp(1));
+    }
+
+    private void UpdateTowerVisual(Sprite2D sprite, ProgressBar hpBar, int currentHp)
+    {
+        int player = sprite == _p1TowerSprite ? 0 : 1;
+        hpBar.MaxValue = _sim.GetStartingTowerHp(player);
+        hpBar.Value = currentHp;
+
+        float maxHp = _sim.GetStartingTowerHp(player);
+        float hpPct = maxHp > 0 ? currentHp / maxHp : 0.0f;
+        sprite.Modulate = new Color(1.0f, 0.5f + hpPct * 0.5f, 0.5f + hpPct * 0.5f);
+    }
+
+    private static BuildingData? FindBuildingOrFallback(BuildingData[] buildings, string name, BuildingData? fallback)
+    {
+        for (int i = 0; i < buildings.Length; i++)
+        {
+            if (buildings[i] != null && buildings[i].BuildingName == name)
+                return buildings[i];
+        }
+        return fallback;
+    }
+
+    private static BuildingData? FindBuildingByArchetype(BuildingData[] buildings, string archetype)
+    {
+        for (int i = 0; i < buildings.Length; i++)
+        {
+            var building = buildings[i];
+            if (building == null)
+                continue;
+
+            if (MatchesArchetype(building, archetype))
+                return building;
+        }
+
+        return null;
+    }
+
+    private static bool MatchesArchetype(BuildingData building, string archetype)
+    {
+        if (archetype == "economy")
+            return building.IncomeBonus > 0;
+
+        if (archetype == "support")
+            return building.SupportDamageBonus > 0;
+
+        if (building.SpawnedUnit == null)
+            return false;
+
+        string role = building.SpawnedUnit.UnitRole;
+        return archetype switch
+        {
+            "ranged" => role == "Ranged",
+            "tank" => role == "Tank",
+            "siege" => role == "Siege",
+            "core" => (role == "Fighter" || role == "Swarm" || role == "Bruiser") && building.RequiredBuildingNames.Length == 0,
+            _ => false
+        };
+    }
+
+    private static BuildingInfo? ToOptionalBuildingInfo(BuildingData? data)
+    {
+        return data != null ? BuildingDataToBuildingInfo(data) : null;
+    }
+
+    private void StartMatchWithRaces(RaceData? playerRace, RaceData? enemyRace)
+    {
+        PlayerRace = playerRace;
+        EnemyRace = enemyRace;
+        _matchEnded = false;
+        _accumulator = 0.0;
+
+        int[] towerHpByPlayer =
+        {
+            PlayerRace?.TowerHp ?? Config.TowerHp,
+            EnemyRace?.TowerHp ?? Config.TowerHp
+        };
+        int[] towerAttackDamageByPlayer =
+        {
+            PlayerRace?.TowerAttackDamage ?? Config.TowerAttackDamage,
+            EnemyRace?.TowerAttackDamage ?? Config.TowerAttackDamage
+        };
+        int[] towerAttackCooldownByPlayer =
+        {
+            PlayerRace?.TowerAttackCooldownMs ?? Config.TowerAttackCooldownMs,
+            EnemyRace?.TowerAttackCooldownMs ?? Config.TowerAttackCooldownMs
+        };
+        int[] towerAttackRangeByPlayer =
+        {
+            PlayerRace?.TowerAttackRange ?? Config.TowerAttackRange,
+            EnemyRace?.TowerAttackRange ?? Config.TowerAttackRange
+        };
+
+        _sim = new MatchSimulation(
+            Config.StartingGold, Config.BaseIncomePerTick, Config.IncomeTickMs,
+            Config.TowerHp, Config.BuildZoneWidth, Config.BuildZoneHeight,
+            Config.SimTickMs, Config.LaneLengthUnits,
+            Config.TowerAttackDamage, Config.TowerAttackCooldownMs, Config.TowerAttackRange,
+            towerHpByPlayer, towerAttackDamageByPlayer, towerAttackCooldownByPlayer, towerAttackRangeByPlayer);
+        _laneRenderer.Initialize(_sim);
+
+        if (PlayerRace != null && PlayerRace.AvailableBuildings.Length > 0)
+            _buildingPanel.AvailableBuildings = PlayerRace.AvailableBuildings;
+
+        _buildingPanel.Initialize(_sim, 0);
+        _buildingPanel.BuildingClicked += OnBuildingSelected;
+        _buildingPanel.Visible = true;
+        _hud.SetRaceNames(PlayerRace?.RaceName ?? "Custom", EnemyRace?.RaceName ?? "Custom");
+        ApplyRaceTowerVisuals();
+
+        var enemyBuildings = EnemyRace != null && EnemyRace.AvailableBuildings.Length > 0
+            ? EnemyRace.AvailableBuildings
+            : new[] { BarracksData };
+
+        var coreInfo = BuildingDataToBuildingInfo(
+            FindBuildingByArchetype(enemyBuildings, "core")
+            ?? FindBuildingOrFallback(enemyBuildings, "Barracks", BarracksData)!);
+        BuildingInfo? rangedInfo = ToOptionalBuildingInfo(FindBuildingByArchetype(enemyBuildings, "ranged"));
+        BuildingInfo? tankInfo = ToOptionalBuildingInfo(FindBuildingByArchetype(enemyBuildings, "tank"));
+        BuildingInfo? siegeInfo = ToOptionalBuildingInfo(FindBuildingByArchetype(enemyBuildings, "siege"));
+        BuildingInfo? supportInfo = ToOptionalBuildingInfo(FindBuildingByArchetype(enemyBuildings, "support"));
+        BuildingInfo? economyInfo = ToOptionalBuildingInfo(FindBuildingByArchetype(enemyBuildings, "economy"));
+        _ai = new SimpleAI(12345, coreInfo, rangedInfo, tankInfo, siegeInfo, supportInfo, economyInfo, Config.BuildZoneWidth, Config.BuildZoneHeight);
+
+        _matchStarted = true;
+    }
+
+    private RaceData ChooseEnemyRace(RaceData selectedRace)
+    {
+        if (EnemyRace != null && EnemyRace != selectedRace)
+            return EnemyRace;
+
+        for (int i = 0; i < AvailableRaces.Length; i++)
+        {
+            if (AvailableRaces[i] != selectedRace)
+                return AvailableRaces[i];
+        }
+
+        return selectedRace;
+    }
+
+    private void ApplyRaceTowerVisuals()
+    {
+        ApplyTowerSprite(_p1TowerSprite, PlayerRace?.TowerSpritePath);
+        ApplyTowerSprite(_p2TowerSprite, EnemyRace?.TowerSpritePath);
+        _p1TowerHpBar.Value = PlayerRace?.TowerHp ?? Config.TowerHp;
+        _p1TowerHpBar.MaxValue = PlayerRace?.TowerHp ?? Config.TowerHp;
+        _p2TowerHpBar.Value = EnemyRace?.TowerHp ?? Config.TowerHp;
+        _p2TowerHpBar.MaxValue = EnemyRace?.TowerHp ?? Config.TowerHp;
+    }
+
+    private static void ApplyTowerSprite(Sprite2D sprite, string? spritePath)
+    {
+        if (string.IsNullOrEmpty(spritePath))
+            return;
+
+        var texture = GD.Load<Texture2D>(spritePath);
+        if (texture != null)
+            sprite.Texture = texture;
     }
 }

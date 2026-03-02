@@ -33,10 +33,10 @@ public class EconomyManager
 
     /// <summary>
     /// Calculate income for this tick.
-    /// Each economy building provides +1 income on top of BaseIncome.
+    /// BuildingIncomeBonus is the summed bonus from all placed buildings.
     /// </summary>
-    public int CalculateIncome(int economyBuildingCount)
+    public int CalculateIncome(int buildingIncomeBonus)
     {
-        return BaseIncome + economyBuildingCount;
+        return BaseIncome + buildingIncomeBonus;
     }
 }

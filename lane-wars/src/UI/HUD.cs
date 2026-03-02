@@ -14,6 +14,9 @@ public partial class HUD : Control
     private Label _playerHpLabel = null!;
     private Label _enemyHpLabel = null!;
     private Label _timerLabel = null!;
+    private Label _raceLabel = null!;
+    private Label _buffLabel = null!;
+    private Label _enemyBuildsLabel = null!;
     private ProgressBar _playerHpBar = null!;
     private ProgressBar _enemyHpBar = null!;
 
@@ -24,8 +27,22 @@ public partial class HUD : Control
         _playerHpLabel = GetNode<Label>("TopBar/PlayerHpLabel");
         _enemyHpLabel = GetNode<Label>("TopBar/EnemyHpLabel");
         _timerLabel = GetNode<Label>("TopBar/TimerLabel");
+        _raceLabel = GetNode<Label>("IntelPanel/RaceLabel");
+        _buffLabel = GetNode<Label>("IntelPanel/BuffLabel");
+        _enemyBuildsLabel = GetNode<Label>("IntelPanel/EnemyBuildsLabel");
         _playerHpBar = GetNode<ProgressBar>("TopBar/PlayerHpBar");
         _enemyHpBar = GetNode<ProgressBar>("TopBar/EnemyHpBar");
+
+        // Prevent HUD from consuming mouse clicks meant for the game world
+        SetIgnoreMouse(this);
+    }
+
+    private static void SetIgnoreMouse(Node node)
+    {
+        if (node is Control c)
+            c.MouseFilter = MouseFilterEnum.Ignore;
+        foreach (var child in node.GetChildren())
+            SetIgnoreMouse(child);
     }
 
     public void UpdateDisplay(MatchSimulation sim, int playerIndex)
@@ -33,19 +50,31 @@ public partial class HUD : Control
         int enemyIndex = 1 - playerIndex;
         _goldLabel.Text = $"Gold: {sim.GetGold(playerIndex)}";
 
-        int income = 10 + sim.GetEconomyBuildingCount(playerIndex);
-        _incomeLabel.Text = $"Income: {income}/tick";
+        int income = sim.GetIncomePerTick(playerIndex);
+        int remainingMs = sim.IncomeTickMs - sim.IncomeAccumulatorMs;
+        int remainingSec = (remainingMs + 999) / 1000;
+        _incomeLabel.Text = $"${income} in {remainingSec}s";
 
-        int playerHp = sim.GetBaseHp(playerIndex);
-        int enemyHp = sim.GetBaseHp(enemyIndex);
-        _playerHpLabel.Text = $"Your Base: {playerHp}";
-        _enemyHpLabel.Text = $"Enemy Base: {enemyHp}";
+        int playerHp = sim.GetTowerHp(playerIndex);
+        int enemyHp = sim.GetTowerHp(enemyIndex);
+        _playerHpLabel.Text = $"Your Tower: {playerHp}";
+        _enemyHpLabel.Text = $"Enemy Tower: {enemyHp}";
+        _playerHpBar.MaxValue = sim.GetStartingTowerHp(playerIndex);
+        _enemyHpBar.MaxValue = sim.GetStartingTowerHp(enemyIndex);
         _playerHpBar.Value = playerHp;
         _enemyHpBar.Value = enemyHp;
+
+        _buffLabel.Text = $"Forge Bonus: +{sim.GetSupportDamageBonus(playerIndex)} damage";
+        _enemyBuildsLabel.Text = $"Enemy Builds: {sim.GetBuildingSummary(enemyIndex)}";
 
         int totalSec = sim.SimTick.ElapsedMs / 1000;
         int mins = totalSec / 60;
         int secs = totalSec % 60;
         _timerLabel.Text = $"{mins}:{secs:D2}";
+    }
+
+    public void SetRaceNames(string playerRace, string enemyRace)
+    {
+        _raceLabel.Text = $"Race: {playerRace} vs {enemyRace}";
     }
 }

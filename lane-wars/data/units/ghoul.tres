@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/Units/UnitData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+UnitName = "Ghoul"
+UnitRole = "Fighter"
+Hp = 100
+Damage = 17
+AttackCooldownMs = 900
+MoveSpeedUnits = 90
+Range = 0
+ArmorType = 0
+DamageType = 0
+SpawnTimeMs = 3200
+TowerDamageMultiplierPct = 100
+SpritePath = "res://assets/sprites/units/footman_blue.png"

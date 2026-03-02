@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/Units/UnitData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+UnitName = "Wyrm Keeper"
+UnitRole = "Ranged"
+Hp = 85
+Damage = 18
+AttackCooldownMs = 1100
+MoveSpeedUnits = 70
+Range = 190
+ArmorType = 3
+DamageType = 3
+SpawnTimeMs = 4200
+TowerDamageMultiplierPct = 120
+SpritePath = "res://assets/sprites/units/archer_blue.png"

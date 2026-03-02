@@ -6,10 +6,13 @@
 [resource]
 script = ExtResource("1")
 BuildingName = "Barracks"
+RequiredBuildingNames = PackedStringArray()
+UnlocksBuildingNames = PackedStringArray("Armory", "Forge")
 GoldCost = 25
 GridWidth = 1
 GridHeight = 1
 SpawnedUnit = ExtResource("2")
 IsEconomyBuilding = false
 IncomeBonus = 0
+SupportDamageBonus = 0
 SpritePath = "res://assets/sprites/buildings/barracks.png"

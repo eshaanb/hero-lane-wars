@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/Units/UnitData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+UnitName = "Glade Scout"
+UnitRole = "Ranged"
+Hp = 70
+Damage = 13
+AttackCooldownMs = 800
+MoveSpeedUnits = 82
+Range = 180
+ArmorType = 0
+DamageType = 1
+SpawnTimeMs = 3000
+TowerDamageMultiplierPct = 100
+SpritePath = "res://assets/sprites/units/archer_blue.png"

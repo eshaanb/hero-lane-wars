@@ -12,6 +12,7 @@ public static class TestRunner
         TestCombatResolver.RunAll();
         TestEconomy.RunAll();
         TestLaneSimulation.RunAll();
+        TestMatchSimulation.RunAll();
 
         Console.WriteLine("\n=== ALL TESTS PASSED ===");
     }

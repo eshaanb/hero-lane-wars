@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/Units/UnitData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+UnitName = "Archer"
+UnitRole = "Ranged"
+Hp = 75
+Damage = 12
+AttackCooldownMs = 900
+MoveSpeedUnits = 75
+Range = 160
+ArmorType = 0
+DamageType = 1
+SpawnTimeMs = 3500
+TowerDamageMultiplierPct = 100
+SpritePath = "res://assets/sprites/units/archer_blue.png"

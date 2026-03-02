@@ -26,13 +26,13 @@ text = "Income: 10/tick"
 
 [node name="PlayerHpLabel" type="Label" parent="TopBar"]
 layout_mode = 2
-text = "Your Base: 50"
+text = "Your Tower: 400"
 
 [node name="PlayerHpBar" type="ProgressBar" parent="TopBar"]
 layout_mode = 2
 custom_minimum_size = Vector2(100, 0)
-max_value = 50.0
-value = 50.0
+max_value = 400.0
+value = 400.0
 
 [node name="TimerLabel" type="Label" parent="TopBar"]
 layout_mode = 2
@@ -42,9 +42,29 @@ text = "0:00"
 [node name="EnemyHpBar" type="ProgressBar" parent="TopBar"]
 layout_mode = 2
 custom_minimum_size = Vector2(100, 0)
-max_value = 50.0
-value = 50.0
+max_value = 400.0
+value = 400.0
 
 [node name="EnemyHpLabel" type="Label" parent="TopBar"]
 layout_mode = 2
-text = "Enemy Base: 50"
+text = "Enemy Tower: 400"
+
+[node name="IntelPanel" type="VBoxContainer" parent="."]
+layout_mode = 1
+offset_left = 10.0
+offset_top = 48.0
+offset_right = 360.0
+offset_bottom = 150.0
+
+[node name="RaceLabel" type="Label" parent="IntelPanel"]
+layout_mode = 2
+text = "Race: Unknown vs Unknown"
+
+[node name="BuffLabel" type="Label" parent="IntelPanel"]
+layout_mode = 2
+text = "Forge Bonus: +0 damage"
+
+[node name="EnemyBuildsLabel" type="Label" parent="IntelPanel"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Enemy Builds: None"

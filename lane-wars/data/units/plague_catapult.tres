@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/Units/UnitData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+UnitName = "Plague Catapult"
+UnitRole = "Siege"
+Hp = 130
+Damage = 24
+AttackCooldownMs = 1700
+MoveSpeedUnits = 42
+Range = 220
+ArmorType = 2
+DamageType = 2
+SpawnTimeMs = 6200
+TowerDamageMultiplierPct = 280
+SpritePath = "res://assets/sprites/units/catapult_blue.png"

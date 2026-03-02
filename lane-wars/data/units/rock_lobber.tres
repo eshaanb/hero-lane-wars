@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/Units/UnitData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+UnitName = "Rock Lobber"
+UnitRole = "Siege"
+Hp = 150
+Damage = 28
+AttackCooldownMs = 1900
+MoveSpeedUnits = 44
+Range = 210
+ArmorType = 2
+DamageType = 2
+SpawnTimeMs = 6400
+TowerDamageMultiplierPct = 260
+SpritePath = "res://assets/sprites/units/catapult_blue.png"

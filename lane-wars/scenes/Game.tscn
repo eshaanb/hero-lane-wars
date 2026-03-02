@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=23 format=3]
 
 [ext_resource type="Script" path="res://src/Core/GameManager.cs" id="1"]
 [ext_resource type="Script" path="res://src/Core/LaneRenderer.cs" id="2"]
@@ -6,9 +6,34 @@
 [ext_resource type="PackedScene" path="res://scenes/UI/HUD.tscn" id="4"]
 [ext_resource type="PackedScene" path="res://scenes/UI/BuildingPanel.tscn" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/UI/EndGameOverlay.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://scenes/UI/RaceSelectOverlay.tscn" id="17"]
+[ext_resource type="Resource" path="res://data/game_config.tres" id="7"]
+[ext_resource type="Resource" path="res://data/buildings/barracks.tres" id="8"]
+[ext_resource type="Texture2D" path="res://assets/sprites/buildings/base.png" id="9"]
+[ext_resource type="Resource" path="res://data/buildings/treasury.tres" id="10"]
+[ext_resource type="Resource" path="res://data/buildings/archery_range.tres" id="11"]
+[ext_resource type="Resource" path="res://data/buildings/armory.tres" id="12"]
+[ext_resource type="Resource" path="res://data/buildings/siege_workshop.tres" id="13"]
+[ext_resource type="Resource" path="res://data/buildings/forge.tres" id="14"]
+[ext_resource type="Resource" path="res://data/races/iron_legion.tres" id="15"]
+[ext_resource type="Resource" path="res://data/races/expedition_guild.tres" id="16"]
+[ext_resource type="Resource" path="res://data/races/undead_court.tres" id="18"]
+[ext_resource type="Resource" path="res://data/races/sylvan_host.tres" id="19"]
+[ext_resource type="Resource" path="res://data/races/orc_warclans.tres" id="20"]
+[ext_resource type="Resource" path="res://data/races/dragon_broods.tres" id="21"]
 
 [node name="Game" type="Node2D"]
 script = ExtResource("1")
+Config = ExtResource("7")
+AvailableRaces = Array[Resource]([ExtResource("18"), ExtResource("19"), ExtResource("20"), ExtResource("21")])
+PlayerRace = ExtResource("18")
+EnemyRace = ExtResource("19")
+BarracksData = ExtResource("8")
+ArcheryRangeData = ExtResource("11")
+ArmoryData = ExtResource("12")
+SiegeWorkshopData = ExtResource("13")
+ForgeData = ExtResource("14")
+EconomyBuildingData = ExtResource("10")
 
 [node name="Camera" type="Camera2D" parent="."]
 position = Vector2(640, 360)
@@ -25,7 +50,15 @@ position = Vector2(16, 200)
 script = ExtResource("3")
 
 [node name="Base" type="Sprite2D" parent="Player1Side"]
-position = Vector2(-40, 64)
+position = Vector2(184, 160)
+texture = ExtResource("9")
+
+[node name="TowerHpBar" type="ProgressBar" parent="Player1Side"]
+position = Vector2(136, 112)
+custom_minimum_size = Vector2(96, 12)
+show_percentage = false
+max_value = 400.0
+value = 400.0
 
 [node name="Player2Side" type="Node2D" parent="."]
 position = Vector2(1040, 200)
@@ -34,12 +67,23 @@ position = Vector2(1040, 200)
 script = ExtResource("3")
 
 [node name="Base" type="Sprite2D" parent="Player2Side"]
-position = Vector2(296, 64)
+position = Vector2(-40, 160)
+texture = ExtResource("9")
+
+[node name="TowerHpBar" type="ProgressBar" parent="Player2Side"]
+position = Vector2(-88, 112)
+custom_minimum_size = Vector2(96, 12)
+show_percentage = false
+max_value = 400.0
+value = 400.0
 
 [node name="UI" type="CanvasLayer" parent="."]
 
 [node name="HUD" parent="UI" instance=ExtResource("4")]
 
 [node name="BuildingPanel" parent="UI" instance=ExtResource("5")]
+AvailableBuildings = Array[Resource]([ExtResource("8"), ExtResource("11"), ExtResource("12"), ExtResource("13"), ExtResource("14"), ExtResource("10")])
 
 [node name="EndGameOverlay" parent="UI" instance=ExtResource("6")]
+
+[node name="RaceSelectOverlay" parent="UI" instance=ExtResource("17")]

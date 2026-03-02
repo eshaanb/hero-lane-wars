@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/Units/UnitData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+UnitName = "Ember Launcher"
+UnitRole = "Siege"
+Hp = 135
+Damage = 30
+AttackCooldownMs = 2000
+MoveSpeedUnits = 40
+Range = 230
+ArmorType = 2
+DamageType = 2
+SpawnTimeMs = 7000
+TowerDamageMultiplierPct = 320
+SpritePath = "res://assets/sprites/units/catapult_blue.png"

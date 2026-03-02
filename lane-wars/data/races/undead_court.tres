@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="RaceData" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://src/Core/RaceData.cs" id="1"]
+[ext_resource type="Resource" path="res://data/buildings/crypt.tres" id="2"]
+[ext_resource type="Resource" path="res://data/buildings/bone_reliquary.tres" id="3"]
+[ext_resource type="Resource" path="res://data/buildings/soul_catacomb.tres" id="4"]
+[ext_resource type="Resource" path="res://data/buildings/soul_well.tres" id="5"]
+[ext_resource type="Resource" path="res://data/buildings/black_mint.tres" id="6"]
+
+[resource]
+script = ExtResource("1")
+RaceName = "Undead Court"
+Description = "Attrition-focused necromancers with a durable necropolis and punishing tower zone control."
+TowerName = "Necropolis Spire"
+TowerHp = 520
+TowerAttackDamage = 22
+TowerAttackCooldownMs = 1300
+TowerAttackRange = 240
+TowerSpritePath = "res://assets/sprites/buildings/tower_undead.png"
+AvailableBuildings = Array[Resource]([ExtResource("2"), ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])
