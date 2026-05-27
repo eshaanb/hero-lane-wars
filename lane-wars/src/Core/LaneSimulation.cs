@@ -65,6 +65,7 @@ public class LaneSimulation
     public int SpawnUnit(UnitSpawnRequest req)
     {
         int id = _nextUnitId++;
+        bool hasSourceBuilding = req.SourceGridWidth > 0 && req.SourceGridHeight > 0;
         UnitState unit = new()
         {
             UnitId = id,
@@ -81,6 +82,11 @@ public class LaneSimulation
             TowerDamageMultiplierPct = req.TowerDamageMultiplierPct > 0 ? req.TowerDamageMultiplierPct : 100,
             PositionX = req.StartPositionX,
             Direction = req.Direction,
+            AgeMs = 0,
+            SpawnGridX = hasSourceBuilding ? req.SourceGridX : -1,
+            SpawnGridY = hasSourceBuilding ? req.SourceGridY : -1,
+            SpawnGridWidth = hasSourceBuilding ? req.SourceGridWidth : 0,
+            SpawnGridHeight = hasSourceBuilding ? req.SourceGridHeight : 0,
             TargetUnitId = -1,
             RecentAttackMs = 0,
             SpritePath = req.SpritePath,
@@ -103,6 +109,8 @@ public class LaneSimulation
             UnitState unit = _units[i];
             if (!unit.IsAlive)
                 continue;
+
+            unit.AgeMs += tickMs;
 
             if (unit.RecentAttackMs > 0)
             {

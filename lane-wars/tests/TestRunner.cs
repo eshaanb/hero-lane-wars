@@ -13,6 +13,8 @@ public static class TestRunner
         TestEconomy.RunAll();
         TestLaneSimulation.RunAll();
         TestMatchSimulation.RunAll();
+        TestStrategicDepth.RunAll();
+        TestStrategicAI.RunAll();
 
         Console.WriteLine("\n=== ALL TESTS PASSED ===");
     }

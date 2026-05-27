@@ -16,6 +16,10 @@ public partial class UnitRenderer : Node2D
     private const float LaneStartX = 200.0f;  // Left edge of lane in pixels
     private const float LaneY = 360.0f;       // Lane center Y
     private const float PixelsPerUnit = 0.8f;  // Scale sim units to pixels
+    private const float BuildZoneCellSize = 32.0f;
+    private const int SpawnEntryDurationMs = 700;
+    private static readonly Vector2 PlayerBuildZoneOrigin = new(16.0f, 200.0f);
+    private static readonly Vector2 EnemyBuildZoneOrigin = new(1040.0f, 200.0f);
 
     public void Initialize(UnitState unit)
     {
@@ -28,14 +32,14 @@ public partial class UnitRenderer : Node2D
         _healthBarBg = GetNode<ColorRect>("HealthBarBg");
         _healthBarFill = GetNode<ColorRect>("HealthBarFill");
 
-        _defaultTexture = GD.Load<Texture2D>("res://assets/sprites/units/footman_blue.png");
+        _defaultTexture = GD.Load<Texture2D>("res://assets/sprites/units/swordsman_blue.png");
         _sprite.Modulate = Colors.White;
     }
 
     public void SyncFromSim(UnitState unit, int laneLengthUnits, Vector2 visualOffset)
     {
         // Convert integer position to screen position
-        Position = CalculateScreenPosition(unit.PositionX, visualOffset);
+        Position = CalculateScreenPosition(unit, visualOffset);
 
         // Load sprite from sim state. If there is no dedicated enemy sprite, tint the unit red.
         string spritePath = ResolveSpritePath(unit.SpritePath, unit.OwnerPlayer);
@@ -57,6 +61,27 @@ public partial class UnitRenderer : Node2D
     {
         float screenX = LaneStartX + positionX * PixelsPerUnit;
         return new Vector2(screenX, LaneY) + visualOffset;
+    }
+
+    public static Vector2 CalculateScreenPosition(UnitState unit, Vector2 visualOffset)
+    {
+        Vector2 lanePosition = CalculateScreenPosition(unit.PositionX, visualOffset);
+        if (unit.SpawnGridX < 0 || unit.SpawnGridY < 0 || unit.AgeMs >= SpawnEntryDurationMs)
+            return lanePosition;
+
+        float t = Mathf.Clamp(unit.AgeMs / (float)SpawnEntryDurationMs, 0.0f, 1.0f);
+        float eased = 1.0f - (1.0f - t) * (1.0f - t);
+        return CalculateSpawnOrigin(unit).Lerp(lanePosition, eased);
+    }
+
+    private static Vector2 CalculateSpawnOrigin(UnitState unit)
+    {
+        Vector2 buildZoneOrigin = unit.OwnerPlayer == 0 ? PlayerBuildZoneOrigin : EnemyBuildZoneOrigin;
+        int gridWidth = unit.SpawnGridWidth > 0 ? unit.SpawnGridWidth : 1;
+        int gridHeight = unit.SpawnGridHeight > 0 ? unit.SpawnGridHeight : 1;
+        return buildZoneOrigin + new Vector2(
+            (unit.SpawnGridX + gridWidth * 0.5f) * BuildZoneCellSize,
+            (unit.SpawnGridY + gridHeight * 0.5f) * BuildZoneCellSize);
     }
 
     private static string ResolveSpritePath(string baseSpritePath, int ownerPlayer)

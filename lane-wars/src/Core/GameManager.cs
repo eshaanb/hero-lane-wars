@@ -62,6 +62,8 @@ public partial class GameManager : Node2D
         _p2TowerHpBar = GetNode<ProgressBar>("Player2Side/TowerHpBar");
 
         _p1BuildZone.Initialize(Config.BuildZoneWidth, Config.BuildZoneHeight);
+        _p1BuildZone.ObscureOccupiedCells = false;
+        _p2BuildZone.ObscureOccupiedCells = true;
         _p2BuildZone.Initialize(Config.BuildZoneWidth, Config.BuildZoneHeight);
 
         // Wire UI events
@@ -109,7 +111,7 @@ public partial class GameManager : Node2D
         if (_sim.IsMatchOver())
         {
             _matchEnded = true;
-            _endGameOverlay.Show(_sim.GetWinner(), 0);
+            _endGameOverlay.Show(_sim.GetWinner(), 0, BuildPostgameAnalysis(_sim, 0, 1, _ai));
         }
     }
 
@@ -144,11 +146,22 @@ public partial class GameManager : Node2D
         var (gridX, gridY) = _p1BuildZone.WorldToGrid(mousePos);
         if (gridX < 0) return;
 
-        var info = BuildingDataToBuildingInfo(_selectedBuilding!);
+        BuildingData selectedBuilding = _selectedBuilding!;
+        var info = BuildingDataToBuildingInfo(selectedBuilding);
         if (_sim.PlaceBuilding(0, gridX, gridY, info))
         {
             _p1BuildZone.RefreshVisuals(_sim, 0);
-            CancelPlacement();
+            _buildingPanel.UpdateAffordability(_sim, 0);
+            if (_sim.GetGold(0) < selectedBuilding.GoldCost ||
+                !_sim.MeetsRequirements(0, selectedBuilding.RequiredBuildingNames))
+            {
+                CancelPlacement();
+            }
+            else
+            {
+                _buildingPanel.SetSelectedBuilding(selectedBuilding);
+                UpdatePlacementPreview();
+            }
         }
     }
 
@@ -180,8 +193,11 @@ public partial class GameManager : Node2D
             RequiredBuildingNames = data.RequiredBuildingNames,
             UnlocksBuildingNames = data.UnlocksBuildingNames,
             GoldCost = data.GoldCost,
+            BuildDelayMs = data.BuildDelayMs,
             GridWidth = data.GridWidth,
             GridHeight = data.GridHeight,
+            StrategicRole = data.StrategicRole,
+            CompositionHint = ResolveCompositionHint(data),
             IsEconomyBuilding = data.IsEconomyBuilding,
             IncomeBonus = data.IncomeBonus,
             SupportDamageBonus = data.SupportDamageBonus,
@@ -224,6 +240,7 @@ public partial class GameManager : Node2D
             gridY,
             _selectedBuilding.GridWidth,
             _selectedBuilding.GridHeight) &&
+            _sim.MeetsRequirements(0, _selectedBuilding.RequiredBuildingNames) &&
             _sim.GetGold(0) >= _selectedBuilding.GoldCost;
 
         _p1BuildZone.SetPreview(
@@ -281,10 +298,10 @@ public partial class GameManager : Node2D
     private static bool MatchesArchetype(BuildingData building, string archetype)
     {
         if (archetype == "economy")
-            return building.IncomeBonus > 0;
+            return building.StrategicRole == StrategicRole.Economy || building.IncomeBonus > 0;
 
         if (archetype == "support")
-            return building.SupportDamageBonus > 0;
+            return building.StrategicRole == StrategicRole.Tech && building.SupportDamageBonus > 0;
 
         if (building.SpawnedUnit == null)
             return false;
@@ -293,9 +310,9 @@ public partial class GameManager : Node2D
         return archetype switch
         {
             "ranged" => role == "Ranged",
-            "tank" => role == "Tank",
-            "siege" => role == "Siege",
-            "core" => (role == "Fighter" || role == "Swarm" || role == "Bruiser") && building.RequiredBuildingNames.Length == 0,
+            "tank" => building.StrategicRole == StrategicRole.Defense || role == "Tank",
+            "siege" => building.CompositionHint == CompositionHint.Splash || role == "Siege",
+            "core" => building.StrategicRole == StrategicRole.Pressure && building.RequiredBuildingNames.Length == 0,
             _ => false
         };
     }
@@ -362,9 +379,37 @@ public partial class GameManager : Node2D
         BuildingInfo? siegeInfo = ToOptionalBuildingInfo(FindBuildingByArchetype(enemyBuildings, "siege"));
         BuildingInfo? supportInfo = ToOptionalBuildingInfo(FindBuildingByArchetype(enemyBuildings, "support"));
         BuildingInfo? economyInfo = ToOptionalBuildingInfo(FindBuildingByArchetype(enemyBuildings, "economy"));
-        _ai = new SimpleAI(12345, coreInfo, rangedInfo, tankInfo, siegeInfo, supportInfo, economyInfo, Config.BuildZoneWidth, Config.BuildZoneHeight);
+        var aiPlan = ChooseAiStrategyPlan(EnemyRace);
+        _ai = new SimpleAI(12345, coreInfo, rangedInfo, tankInfo, siegeInfo, supportInfo, economyInfo,
+            Config.BuildZoneWidth, Config.BuildZoneHeight, plan: aiPlan);
 
         _matchStarted = true;
+    }
+
+    private static CompositionHint ResolveCompositionHint(BuildingData data)
+    {
+        if (data.CompositionHint != CompositionHint.Unknown)
+            return data.CompositionHint;
+        if (data.SpawnedUnit == null)
+            return CompositionHint.Unknown;
+
+        if (data.SpawnedUnit.UnitRole == "Swarm")
+            return CompositionHint.Swarm;
+        if (data.SpawnedUnit.UnitRole == "Tank" || data.SpawnedUnit.ArmorType == ArmorType.Heavy)
+            return CompositionHint.Heavy;
+        if (data.SpawnedUnit.UnitRole == "Siege" || data.SpawnedUnit.DamageType == DamageType.Siege)
+            return CompositionHint.Splash;
+        return CompositionHint.Mixed;
+    }
+
+    private static AiStrategyPlan ChooseAiStrategyPlan(RaceData? enemyRace)
+    {
+        string raceName = enemyRace?.RaceName ?? "";
+        if (raceName.Contains("Orc"))
+            return AiStrategyPlan.TempoRush;
+        if (raceName.Contains("Undead"))
+            return AiStrategyPlan.EconomyGreed;
+        return AiStrategyPlan.TechCounterScaling;
     }
 
     private RaceData ChooseEnemyRace(RaceData selectedRace)
@@ -399,5 +444,98 @@ public partial class GameManager : Node2D
         var texture = GD.Load<Texture2D>(spritePath);
         if (texture != null)
             sprite.Texture = texture;
+    }
+
+    public static PostgameAnalysis BuildPostgameAnalysis(MatchSimulation sim, int humanPlayer, int enemyPlayer, SimpleAI ai)
+    {
+        int enemyPressureMs = sim.GetFirstInvestmentTime(enemyPlayer, StrategicRole.Pressure);
+        int enemyEconomyMs = sim.GetFirstInvestmentTime(enemyPlayer, StrategicRole.Economy);
+        int enemyTechMs = sim.GetFirstInvestmentTime(enemyPlayer, StrategicRole.Tech);
+        int humanPressureMs = sim.GetFirstInvestmentTime(humanPlayer, StrategicRole.Pressure);
+        int humanEconomyMs = sim.GetFirstInvestmentTime(humanPlayer, StrategicRole.Economy);
+        int humanTechMs = sim.GetFirstInvestmentTime(humanPlayer, StrategicRole.Tech);
+        bool humanWon = sim.GetWinner() == humanPlayer;
+
+        string keyTiming = ai.Plan switch
+        {
+            AiStrategyPlan.TempoRush => $"Enemy pressure began at {FormatTime(enemyPressureMs)}.",
+            AiStrategyPlan.EconomyGreed => $"Enemy economy began at {FormatTime(enemyEconomyMs)}.",
+            AiStrategyPlan.TechCounterScaling => $"Enemy tech began at {FormatTime(enemyTechMs)}.",
+            _ => "Enemy timing was unclear."
+        };
+
+        if (humanWon)
+        {
+            return new PostgameAnalysis
+            {
+                AiPlan = ai.PlanDisplayName,
+                KeyEnemyTiming = keyTiming,
+                LikelyMistake = "Winning read: you answered the enemy commitment before it paid off.",
+                SuggestedAdaptation = "Try a greedier or faster tech response next run to test how much timing margin you had."
+            };
+        }
+
+        if (ai.Plan == AiStrategyPlan.TempoRush && humanEconomyMs >= 0 &&
+            (humanPressureMs < 0 || humanEconomyMs <= humanPressureMs))
+        {
+            return new PostgameAnalysis
+            {
+                AiPlan = ai.PlanDisplayName,
+                KeyEnemyTiming = keyTiming,
+                LikelyMistake = "Likely mistake: you built income while the enemy was preparing early pressure.",
+                SuggestedAdaptation = "Open with pressure or defense first, then buy economy after the lane stabilizes."
+            };
+        }
+
+        if (ai.Plan == AiStrategyPlan.EconomyGreed && enemyEconomyMs >= 0 &&
+            (humanPressureMs < 0 || humanPressureMs > enemyEconomyMs + 45000))
+        {
+            return new PostgameAnalysis
+            {
+                AiPlan = ai.PlanDisplayName,
+                KeyEnemyTiming = keyTiming,
+                LikelyMistake = "Likely mistake: the enemy invested in economy and you did not punish before it paid off.",
+                SuggestedAdaptation = "Delay your own economy and buy early lane pressure when the scout read shows enemy greed."
+            };
+        }
+
+        if (ai.Plan == AiStrategyPlan.TechCounterScaling && enemyTechMs >= 0 &&
+            (humanPressureMs < 0 || humanPressureMs > enemyTechMs))
+        {
+            return new PostgameAnalysis
+            {
+                AiPlan = ai.PlanDisplayName,
+                KeyEnemyTiming = keyTiming,
+                LikelyMistake = "Likely mistake: the enemy teched early and you gave it enough time to reach counter units.",
+                SuggestedAdaptation = "Pressure before tech arrives, or tech into a different composition once the scout read turns high."
+            };
+        }
+
+        if (humanPressureMs >= 0 && humanEconomyMs < 0 && humanTechMs < 0)
+        {
+            return new PostgameAnalysis
+            {
+                AiPlan = ai.PlanDisplayName,
+                KeyEnemyTiming = keyTiming,
+                LikelyMistake = "Likely mistake: your early pressure failed, and you did not transition into economy or tech.",
+                SuggestedAdaptation = "If pressure stalls, pivot into income or a counter-tech building before repeating the same unit mix."
+            };
+        }
+
+        return new PostgameAnalysis
+        {
+            AiPlan = ai.PlanDisplayName,
+            KeyEnemyTiming = keyTiming,
+            LikelyMistake = "Likely mistake: your timing response did not match the enemy commitment.",
+            SuggestedAdaptation = "Use the Enemy Intent panel to choose one clear response: punish greed, defend rush, or pressure tech."
+        };
+    }
+
+    private static string FormatTime(int elapsedMs)
+    {
+        if (elapsedMs < 0)
+            return "not detected";
+        int totalSec = elapsedMs / 1000;
+        return $"{totalSec / 60}:{totalSec % 60:D2}";
     }
 }

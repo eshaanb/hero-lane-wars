@@ -6,13 +6,13 @@
 script = ExtResource("1")
 UnitName = "Grave Guard"
 UnitRole = "Tank"
-Hp = 260
+Hp = 280
 Damage = 18
 AttackCooldownMs = 1200
 MoveSpeedUnits = 55
 Range = 0
 ArmorType = 2
 DamageType = 0
-SpawnTimeMs = 5200
+SpawnTimeMs = 9000
 TowerDamageMultiplierPct = 100
-SpritePath = "res://assets/sprites/units/knight_blue.png"
+SpritePath = "res://assets/sprites/units/grave_guard_blue.png"

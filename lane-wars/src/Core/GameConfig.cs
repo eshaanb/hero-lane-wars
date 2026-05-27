@@ -8,7 +8,7 @@ public partial class GameConfig : Resource
     [Export] public int StartingGold { get; set; } = 100;
     [Export] public int BaseIncomePerTick { get; set; } = 10;
     [Export] public int IncomeTickMs { get; set; } = 10000;
-    [Export] public int TowerHp { get; set; } = 400;
+    [Export] public int TowerHp { get; set; } = 800;
     [Export] public int TowerAttackDamage { get; set; } = 18;
     [Export] public int TowerAttackCooldownMs { get; set; } = 1000;
     [Export] public int TowerAttackRange { get; set; } = 220;

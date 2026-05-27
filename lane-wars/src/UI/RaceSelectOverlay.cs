@@ -10,11 +10,14 @@ public partial class RaceSelectOverlay : Control
 
     private Label _subtitleLabel = null!;
     private VBoxContainer _buttonList = null!;
+    private PanelContainer _panel = null!;
 
     public override void _Ready()
     {
+        _panel = GetNode<PanelContainer>("Panel");
         _subtitleLabel = GetNode<Label>("Panel/VBox/SubTitle");
         _buttonList = GetNode<VBoxContainer>("Panel/VBox/Buttons");
+        _panel.AddThemeStyleboxOverride("panel", UiChrome.CreatePanelStyle(new Color(0.08f, 0.09f, 0.12f, 0.97f), contentMargin: 16.0f));
         Visible = false;
     }
 
@@ -39,6 +42,8 @@ public partial class RaceSelectOverlay : Control
             button.Text = $"{race.RaceName}\n{race.TowerName}: {race.TowerAttackDamage} dmg / {race.TowerAttackRange} rng\n{BuildRaceSummary(race)}";
             button.TooltipText = string.IsNullOrEmpty(race.Description) ? race.RaceName : race.Description;
             button.Alignment = HorizontalAlignment.Left;
+            button.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+            ApplyRaceButtonVisuals(button, race);
             var capturedRace = race;
             button.Pressed += () => EmitSignal(SignalName.RaceSelected, capturedRace);
             _buttonList.AddChild(button);
@@ -66,5 +71,23 @@ public partial class RaceSelectOverlay : Control
         if (race.AvailableBuildings.Length > previewCount)
             summary += ", ...";
         return summary;
+    }
+
+    private static void ApplyRaceButtonVisuals(Button button, RaceData race)
+    {
+        UiChrome.ApplyFantasyButtonTheme(button);
+        button.AddThemeConstantOverride("h_separation", 10);
+
+        if (string.IsNullOrEmpty(race.TowerSpritePath))
+            return;
+
+        var icon = GD.Load<Texture2D>(race.TowerSpritePath);
+        if (icon == null)
+            return;
+
+        button.Icon = icon;
+        button.IconAlignment = HorizontalAlignment.Left;
+        button.VerticalIconAlignment = VerticalAlignment.Center;
+        button.ExpandIcon = false;
     }
 }

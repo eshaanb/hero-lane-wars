@@ -8,6 +8,12 @@ public struct PlacedBuilding
     public string BuildingName;
     public int SpawnTimeMs;         // from BuildingData — time between spawns
     public int AccumulatorMs;       // counts up toward SpawnTimeMs
+    public int BuildDelayRemainingMs;
+    public int BuildDelayTotalMs;
+    public int GridX;
+    public int GridY;
+    public int GridWidth;
+    public int GridHeight;
     public int UnitHp;              // from UnitData
     public int UnitDamage;
     public int UnitAttackCooldownMs;
@@ -18,6 +24,8 @@ public struct PlacedBuilding
     public bool IsEconomyBuilding;
     public int IncomeBonus;
     public int SupportDamageBonus;
+    public StrategicRole StrategicRole;
+    public CompositionHint CompositionHint;
     public string UnitSpritePath;
     public int UnitTowerDamageMultiplierPct;
 }
@@ -34,6 +42,10 @@ public struct UnitSpawnRequest
     public int DamageType;
     public int Direction;           // +1 or -1
     public int StartPositionX;
+    public int SourceGridX;
+    public int SourceGridY;
+    public int SourceGridWidth;
+    public int SourceGridHeight;
     public string SpritePath;
     public int TowerDamageMultiplierPct;
 }
@@ -45,7 +57,29 @@ public class ProductionManager
     /// <summary>Add a building to be tracked for production ticks.</summary>
     public void AddBuilding(PlacedBuilding building)
     {
+        if (building.BuildDelayTotalMs < building.BuildDelayRemainingMs)
+            building.BuildDelayTotalMs = building.BuildDelayRemainingMs;
+        if (building.GridWidth <= 0)
+            building.GridWidth = 1;
+        if (building.GridHeight <= 0)
+            building.GridHeight = 1;
+
         _buildings.Add(building);
+    }
+
+    public bool TryGetBuilding(int buildingId, out PlacedBuilding building)
+    {
+        for (int i = 0; i < _buildings.Count; i++)
+        {
+            if (_buildings[i].BuildingId == buildingId)
+            {
+                building = _buildings[i];
+                return true;
+            }
+        }
+
+        building = default;
+        return false;
     }
 
     /// <summary>
@@ -81,6 +115,15 @@ public class ProductionManager
         {
             PlacedBuilding b = _buildings[i];
 
+            if (b.BuildDelayRemainingMs > 0)
+            {
+                b.BuildDelayRemainingMs -= deltaMs;
+                if (b.BuildDelayRemainingMs < 0)
+                    b.BuildDelayRemainingMs = 0;
+                _buildings[i] = b;
+                continue;
+            }
+
             // Non-unit buildings do not produce units.
             if (b.SpawnTimeMs <= 0)
                 continue;
@@ -104,6 +147,10 @@ public class ProductionManager
                     DamageType = b.UnitDamageType,
                     Direction = direction,
                     StartPositionX = startPositionX,
+                    SourceGridX = b.GridX,
+                    SourceGridY = b.GridY,
+                    SourceGridWidth = b.GridWidth,
+                    SourceGridHeight = b.GridHeight,
                     SpritePath = b.UnitSpritePath,
                     TowerDamageMultiplierPct = b.UnitTowerDamageMultiplierPct
                 });
@@ -145,7 +192,10 @@ public class ProductionManager
     {
         int bonus = 0;
         for (int i = 0; i < _buildings.Count; i++)
-            bonus += _buildings[i].IncomeBonus;
+        {
+            if (_buildings[i].BuildDelayRemainingMs <= 0)
+                bonus += _buildings[i].IncomeBonus;
+        }
         return bonus;
     }
 
@@ -153,7 +203,10 @@ public class ProductionManager
     {
         int bonus = 0;
         for (int i = 0; i < _buildings.Count; i++)
-            bonus += _buildings[i].SupportDamageBonus;
+        {
+            if (_buildings[i].BuildDelayRemainingMs <= 0)
+                bonus += _buildings[i].SupportDamageBonus;
+        }
         return bonus;
     }
 }

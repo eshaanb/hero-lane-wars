@@ -25,6 +25,7 @@ public partial class LaneRenderer : Node2D
 
     private PackedScene _unitScene = null!;
     private Node2D _unitsContainer = null!;
+    private Texture2D? _laneTileTexture;
     private readonly Dictionary<int, UnitRenderer> _renderers = new();
     private MatchSimulation? _sim;
 
@@ -44,6 +45,7 @@ public partial class LaneRenderer : Node2D
     {
         _sim = sim;
         _unitScene = GD.Load<PackedScene>("res://scenes/Unit.tscn");
+        _laneTileTexture = GD.Load<Texture2D>("res://assets/sprites/environment/lane_tile_v02.png");
         _unitsContainer = GetNode<Node2D>("Units");
         QueueRedraw();
     }
@@ -51,13 +53,16 @@ public partial class LaneRenderer : Node2D
     public override void _Draw()
     {
         float laneStartX = 200.0f;
-        float laneEndX = laneStartX + 1000 * 0.8f; // 1000 units * PixelsPerUnit
+        float laneEndX = laneStartX + (_sim?.LaneLengthUnits ?? 1000) * 0.8f;
         float laneY = 360.0f;
-        float laneHeight = 50.0f;
+        float laneHeight = 64.0f;
+        var laneRect = new Rect2(laneStartX, laneY - laneHeight / 2, laneEndX - laneStartX, laneHeight);
 
-        // Lane background
-        DrawRect(new Rect2(laneStartX, laneY - laneHeight / 2, laneEndX - laneStartX, laneHeight),
-            new Color(0.18f, 0.18f, 0.24f, 0.6f));
+        if (_laneTileTexture != null)
+            DrawTextureRect(_laneTileTexture, laneRect, true);
+        else
+            DrawRect(laneRect, new Color(0.18f, 0.18f, 0.24f, 0.6f));
+
         // Lane border lines
         DrawLine(new Vector2(laneStartX, laneY - laneHeight / 2),
             new Vector2(laneEndX, laneY - laneHeight / 2), new Color(0.4f, 0.4f, 0.5f), 1);
@@ -132,7 +137,7 @@ public partial class LaneRenderer : Node2D
             }
 
             Vector2 offset = visualOffsets.TryGetValue(unit.UnitId, out var foundOffset) ? foundOffset : Vector2.Zero;
-            visualPositions[unit.UnitId] = UnitRenderer.CalculateScreenPosition(unit.PositionX, offset);
+            visualPositions[unit.UnitId] = UnitRenderer.CalculateScreenPosition(unit, offset);
             _renderers[unit.UnitId].SyncFromSim(unit, sim.LaneLengthUnits, offset);
         }
 

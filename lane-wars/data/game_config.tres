@@ -4,10 +4,10 @@
 
 [resource]
 script = ExtResource("1")
-StartingGold = 100
+StartingGold = 70
 BaseIncomePerTick = 10
 IncomeTickMs = 10000
-TowerHp = 400
+TowerHp = 800
 TowerAttackDamage = 18
 TowerAttackCooldownMs = 1000
 TowerAttackRange = 220

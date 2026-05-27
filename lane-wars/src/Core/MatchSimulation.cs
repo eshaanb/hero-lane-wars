@@ -14,8 +14,11 @@ public struct BuildingInfo
     public string[] RequiredBuildingNames;
     public string[] UnlocksBuildingNames;
     public int GoldCost;
+    public int BuildDelayMs;
     public int GridWidth;
     public int GridHeight;
+    public StrategicRole StrategicRole;
+    public CompositionHint CompositionHint;
     public bool IsEconomyBuilding;
     public int IncomeBonus;
     public int SupportDamageBonus;
@@ -33,6 +36,46 @@ public struct BuildingInfo
     public int UnitTowerDamageMultiplierPct;
 }
 
+internal struct SpendingEvent
+{
+    public int Player;
+    public StrategicRole Role;
+    public int Cost;
+    public int Tick;
+    public CompositionHint CompositionHint;
+    public int SourceId;
+}
+
+public struct BuildingRuntimeInfo
+{
+    public int BuildingId;
+    public string BuildingName;
+    public string SpritePath;
+    public int BuildDelayRemainingMs;
+    public int BuildDelayTotalMs;
+    public int GridX;
+    public int GridY;
+    public int GridWidth;
+    public int GridHeight;
+    public int SpawnTimeMs;
+    public int SpawnAccumulatorMs;
+    public bool IsEconomyBuilding;
+
+    public bool IsUnderConstruction => BuildDelayTotalMs > 0 && BuildDelayRemainingMs > 0;
+
+    public float ConstructionProgress
+    {
+        get
+        {
+            if (BuildDelayTotalMs <= 0)
+                return 1.0f;
+
+            float elapsed = BuildDelayTotalMs - BuildDelayRemainingMs;
+            return elapsed <= 0.0f ? 0.0f : elapsed / BuildDelayTotalMs;
+        }
+    }
+}
+
 /// <summary>
 /// Top-level match orchestrator. Owns all simulation state for a single match.
 /// Pure C#, no Godot dependencies. Integer math only.
@@ -48,6 +91,7 @@ public class MatchSimulation
     private readonly int[] _startingTowerHp = new int[2];
     private readonly Dictionary<int, string>[] _buildingSprites = new Dictionary<int, string>[2];
     private readonly Dictionary<string, int>[] _buildingCountsByName = new Dictionary<string, int>[2];
+    private readonly List<SpendingEvent>[] _spendingHistory = new List<SpendingEvent>[2];
     private int _nextBuildingId = 0;
 
     // Config values cached from constructor
@@ -82,6 +126,38 @@ public class MatchSimulation
             return "";
         return _buildingSprites[player].TryGetValue(buildingId.Value, out var spritePath) ? spritePath : "";
     }
+    public bool TryGetBuildingAt(int player, int x, int y, out BuildingRuntimeInfo info)
+    {
+        info = default;
+        if (player < 0 || player > 1)
+            return false;
+
+        int? buildingId = _buildZones[player].GetCell(x, y);
+        if (!buildingId.HasValue)
+            return false;
+
+        if (!_production[player].TryGetBuilding(buildingId.Value, out var building))
+            return false;
+
+        _buildingSprites[player].TryGetValue(buildingId.Value, out var spritePath);
+        info = new BuildingRuntimeInfo
+        {
+            BuildingId = buildingId.Value,
+            BuildingName = building.BuildingName,
+            SpritePath = spritePath ?? "",
+            BuildDelayRemainingMs = building.BuildDelayRemainingMs,
+            BuildDelayTotalMs = building.BuildDelayTotalMs,
+            GridX = building.GridX,
+            GridY = building.GridY,
+            GridWidth = building.GridWidth,
+            GridHeight = building.GridHeight,
+            SpawnTimeMs = building.SpawnTimeMs,
+            SpawnAccumulatorMs = building.AccumulatorMs,
+            IsEconomyBuilding = building.IsEconomyBuilding
+        };
+        return true;
+    }
+
     public int GetBuildingCountByName(int player, string buildingName)
     {
         if (string.IsNullOrEmpty(buildingName))
@@ -110,6 +186,45 @@ public class MatchSimulation
             parts.Add($"{kvp.Key} x{kvp.Value}");
         parts.Sort();
         return string.Join(", ", parts);
+    }
+    public ScoutRead GetScoutRead(int targetPlayer)
+    {
+        int[] roleScores = CalculateWeightedRoleScores(targetPlayer, out int[] hintScores, out _);
+        return new ScoutRead
+        {
+            Economy = ToSignalLevel(roleScores[(int)StrategicRole.Economy]),
+            Pressure = ToSignalLevel(roleScores[(int)StrategicRole.Pressure]),
+            Defense = ToSignalLevel(roleScores[(int)StrategicRole.Defense]),
+            Tech = ToSignalLevel(roleScores[(int)StrategicRole.Tech]),
+            CompositionHint = ChooseCompositionHint(hintScores)
+        };
+    }
+    public RecentSpendingSummary GetRecentSpendingSummary(int player)
+    {
+        int[] roleScores = CalculateWeightedRoleScores(player, out int[] hintScores, out int eventCount);
+        return new RecentSpendingSummary
+        {
+            Economy = ToSignalLevel(roleScores[(int)StrategicRole.Economy]),
+            Pressure = ToSignalLevel(roleScores[(int)StrategicRole.Pressure]),
+            Defense = ToSignalLevel(roleScores[(int)StrategicRole.Defense]),
+            Tech = ToSignalLevel(roleScores[(int)StrategicRole.Tech]),
+            CompositionHint = ChooseCompositionHint(hintScores),
+            EventCount = eventCount
+        };
+    }
+    public int GetFirstInvestmentTime(int player, StrategicRole role)
+    {
+        if (player < 0 || player > 1)
+            return -1;
+
+        for (int i = 0; i < _spendingHistory[player].Count; i++)
+        {
+            var ev = _spendingHistory[player][i];
+            if (ev.Role == role)
+                return ev.Tick * _simTick.TickIntervalMs;
+        }
+
+        return -1;
     }
 
     /// <summary>
@@ -147,6 +262,7 @@ public class MatchSimulation
             _towerHp[p] = _startingTowerHp[p];
             _buildingSprites[p] = new Dictionary<int, string>();
             _buildingCountsByName[p] = new Dictionary<string, int>();
+            _spendingHistory[p] = new List<SpendingEvent>();
         }
 
         _lane = new LaneSimulation(
@@ -193,6 +309,7 @@ public class MatchSimulation
 
         // Spend gold
         _economy[player].TrySpend(info.GoldCost);
+        RecordSpending(player, buildingId, info);
 
         // Register with production manager
         PlacedBuilding placed = new()
@@ -201,6 +318,12 @@ public class MatchSimulation
             BuildingName = info.BuildingName,
             SpawnTimeMs = info.SpawnTimeMs,
             AccumulatorMs = 0,
+            BuildDelayRemainingMs = info.BuildDelayMs,
+            BuildDelayTotalMs = info.BuildDelayMs,
+            GridX = x,
+            GridY = y,
+            GridWidth = info.GridWidth,
+            GridHeight = info.GridHeight,
             UnitHp = info.UnitHp,
             UnitDamage = info.UnitDamage,
             UnitAttackCooldownMs = info.UnitAttackCooldownMs,
@@ -211,6 +334,8 @@ public class MatchSimulation
             IsEconomyBuilding = info.IsEconomyBuilding,
             IncomeBonus = info.IncomeBonus,
             SupportDamageBonus = info.SupportDamageBonus,
+            StrategicRole = info.StrategicRole,
+            CompositionHint = info.CompositionHint,
             UnitSpritePath = info.UnitSpritePath,
             UnitTowerDamageMultiplierPct = info.UnitTowerDamageMultiplierPct
         };
@@ -287,5 +412,87 @@ public class MatchSimulation
             return 0;
 
         return _towerHp[0] <= 0 ? 1 : 0;
+    }
+
+    private void RecordSpending(int player, int buildingId, BuildingInfo info)
+    {
+        _spendingHistory[player].Add(new SpendingEvent
+        {
+            Player = player,
+            Role = info.StrategicRole,
+            Cost = info.GoldCost,
+            Tick = _simTick.CurrentTick,
+            CompositionHint = info.CompositionHint,
+            SourceId = buildingId
+        });
+    }
+
+    private int[] CalculateWeightedRoleScores(int player, out int[] hintScores, out int eventCount)
+    {
+        int[] roleScores = new int[4];
+        hintScores = new int[5];
+        eventCount = 0;
+
+        if (player < 0 || player > 1)
+            return roleScores;
+
+        int currentMs = _simTick.ElapsedMs;
+        const int fullWeightWindowMs = 45000;
+        const int halfWeightWindowMs = 90000;
+
+        for (int i = 0; i < _spendingHistory[player].Count; i++)
+        {
+            SpendingEvent ev = _spendingHistory[player][i];
+            int ageMs = currentMs - ev.Tick * _simTick.TickIntervalMs;
+            if (ageMs < 0 || ageMs > halfWeightWindowMs)
+                continue;
+
+            int weight = ageMs <= fullWeightWindowMs ? 2 : 1;
+            int weightedCost = ev.Cost * weight;
+            roleScores[(int)ev.Role] += weightedCost;
+            eventCount++;
+
+            if (ev.CompositionHint != CompositionHint.Unknown)
+                hintScores[(int)ev.CompositionHint] += weightedCost;
+        }
+
+        return roleScores;
+    }
+
+    private static ScoutSignalLevel ToSignalLevel(int weightedScore)
+    {
+        if (weightedScore >= 140)
+            return ScoutSignalLevel.High;
+        if (weightedScore >= 40)
+            return ScoutSignalLevel.Medium;
+        return ScoutSignalLevel.Low;
+    }
+
+    private static CompositionHint ChooseCompositionHint(int[] hintScores)
+    {
+        int bestIndex = (int)CompositionHint.Unknown;
+        int bestScore = 0;
+        int secondScore = 0;
+
+        for (int i = 1; i < hintScores.Length; i++)
+        {
+            int score = hintScores[i];
+            if (score > bestScore)
+            {
+                secondScore = bestScore;
+                bestScore = score;
+                bestIndex = i;
+            }
+            else if (score > secondScore)
+            {
+                secondScore = score;
+            }
+        }
+
+        if (bestScore == 0)
+            return CompositionHint.Unknown;
+        if (secondScore > 0 && bestScore - secondScore <= bestScore / 3)
+            return CompositionHint.Mixed;
+        return (CompositionHint)bestIndex;
     }
 }

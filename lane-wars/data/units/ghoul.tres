@@ -5,14 +5,14 @@
 [resource]
 script = ExtResource("1")
 UnitName = "Ghoul"
-UnitRole = "Fighter"
-Hp = 100
-Damage = 17
-AttackCooldownMs = 900
-MoveSpeedUnits = 90
+UnitRole = "Swarm"
+Hp = 82
+Damage = 10
+AttackCooldownMs = 850
+MoveSpeedUnits = 92
 Range = 0
 ArmorType = 0
 DamageType = 0
-SpawnTimeMs = 3200
-TowerDamageMultiplierPct = 100
-SpritePath = "res://assets/sprites/units/footman_blue.png"
+SpawnTimeMs = 5200
+TowerDamageMultiplierPct = 75
+SpritePath = "res://assets/sprites/units/ghoul_blue.png"
