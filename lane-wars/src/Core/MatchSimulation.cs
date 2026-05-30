@@ -34,6 +34,8 @@ public struct BuildingInfo
     public int SpawnTimeMs;
     public string UnitSpritePath;
     public int UnitTowerDamageMultiplierPct;
+    public int UnitSplashRadius;
+    public int Bounty;
 }
 
 internal struct SpendingEvent
@@ -89,6 +91,8 @@ public class MatchSimulation
     private readonly LaneSimulation _lane;
     private readonly int[] _towerHp = new int[2];
     private readonly int[] _startingTowerHp = new int[2];
+    private readonly TowerBranch[] _towerBranch = new TowerBranch[2];
+    private readonly int[] _towerUpgradeLevel = new int[2];
     private readonly Dictionary<int, string>[] _buildingSprites = new Dictionary<int, string>[2];
     private readonly Dictionary<string, int>[] _buildingCountsByName = new Dictionary<string, int>[2];
     private readonly List<SpendingEvent>[] _spendingHistory = new List<SpendingEvent>[2];
@@ -109,6 +113,8 @@ public class MatchSimulation
     public int GetGold(int player) => _economy[player].Gold;
     public int GetTowerHp(int player) => _towerHp[player];
     public int GetStartingTowerHp(int player) => _startingTowerHp[player];
+    public TowerBranch GetTowerBranch(int player) => (player >= 0 && player <= 1) ? _towerBranch[player] : TowerBranch.None;
+    public int GetTowerUpgradeLevel(int player) => (player >= 0 && player <= 1) ? _towerUpgradeLevel[player] : 0;
     public int GetEconomyBuildingCount(int player) => _production[player].GetEconomyBuildingCount();
     public int GetProductionBuildingCount(int player) => _production[player].GetProductionBuildingCount();
     public int GetIncomePerTick(int player) => _economy[player].CalculateIncome(_production[player].GetTotalIncomeBonus());
@@ -337,11 +343,69 @@ public class MatchSimulation
             StrategicRole = info.StrategicRole,
             CompositionHint = info.CompositionHint,
             UnitSpritePath = info.UnitSpritePath,
-            UnitTowerDamageMultiplierPct = info.UnitTowerDamageMultiplierPct
+            UnitTowerDamageMultiplierPct = info.UnitTowerDamageMultiplierPct,
+            UnitSplashRadius = info.UnitSplashRadius,
+            Bounty = info.Bounty
         };
         _production[player].AddBuilding(placed);
 
         return true;
+    }
+
+    /// <summary>
+    /// Attempt to upgrade the player's tower along <paramref name="branch"/>.
+    /// Exclusive specialization: once a branch is chosen it cannot be switched.
+    /// Returns true if a level was purchased.
+    /// </summary>
+    public bool UpgradeTower(int player, TowerBranch branch)
+    {
+        if (player < 0 || player > 1 || branch == TowerBranch.None)
+            return false;
+        if (_towerBranch[player] != TowerBranch.None && _towerBranch[player] != branch)
+            return false;
+
+        int nextLevel = _towerUpgradeLevel[player] + 1;
+        TowerUpgradeEffect? effect = TowerUpgrades.GetEffect(branch, nextLevel);
+        if (effect == null)
+            return false;
+
+        if (!_economy[player].TrySpend(effect.Value.Cost))
+            return false;
+
+        _towerBranch[player] = branch;
+        _towerUpgradeLevel[player] = nextLevel;
+        ApplyTowerUpgradeEffect(player, effect.Value);
+        return true;
+    }
+
+    /// <summary>Cost of the player's next level in <paramref name="branch"/>, or -1 if unavailable.</summary>
+    public int GetTowerUpgradeCost(int player, TowerBranch branch)
+    {
+        if (player < 0 || player > 1 || branch == TowerBranch.None)
+            return -1;
+        if (_towerBranch[player] != TowerBranch.None && _towerBranch[player] != branch)
+            return -1;
+        TowerUpgradeEffect? effect = TowerUpgrades.GetEffect(branch, _towerUpgradeLevel[player] + 1);
+        return effect?.Cost ?? -1;
+    }
+
+    public int GetTowerAttackDamage(int player) => _lane.GetTowerAttackDamage(player);
+    public int GetTowerAttackRange(int player) => _lane.GetTowerAttackRange(player);
+    public int GetTowerSplashRadius(int player) => _lane.GetTowerSplashRadius(player);
+
+    private void ApplyTowerUpgradeEffect(int player, TowerUpgradeEffect effect)
+    {
+        if (effect.DamageDelta != 0)
+            _lane.AddTowerAttackDamage(player, effect.DamageDelta);
+        if (effect.RangeDelta != 0)
+            _lane.AddTowerAttackRange(player, effect.RangeDelta);
+        if (effect.SplashDelta != 0)
+            _lane.AddTowerSplashRadius(player, effect.SplashDelta);
+        if (effect.MaxHpDelta != 0)
+        {
+            _startingTowerHp[player] += effect.MaxHpDelta;
+            _towerHp[player] += effect.MaxHpDelta;
+        }
     }
 
     /// <summary>
@@ -390,6 +454,10 @@ public class MatchSimulation
             if (_towerHp[towerHits[i].Player] < 0)
                 _towerHp[towerHits[i].Player] = 0;
         }
+
+        // 7. Credit kill bounties earned this tick.
+        for (int p = 0; p < 2; p++)
+            _economy[p].AddGold(_lane.GetLastTickBounty(p));
     }
 
     /// <summary>Check if the match has ended (either tower HP reaches 0).</summary>

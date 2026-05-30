@@ -28,6 +28,8 @@ public struct PlacedBuilding
     public CompositionHint CompositionHint;
     public string UnitSpritePath;
     public int UnitTowerDamageMultiplierPct;
+    public int UnitSplashRadius;
+    public int Bounty;
 }
 
 public struct UnitSpawnRequest
@@ -40,6 +42,8 @@ public struct UnitSpawnRequest
     public int Range;
     public int ArmorType;
     public int DamageType;
+    public int SplashRadius;
+    public int Bounty;
     public int Direction;           // +1 or -1
     public int StartPositionX;
     public int SourceGridX;
@@ -152,7 +156,9 @@ public class ProductionManager
                     SourceGridWidth = b.GridWidth,
                     SourceGridHeight = b.GridHeight,
                     SpritePath = b.UnitSpritePath,
-                    TowerDamageMultiplierPct = b.UnitTowerDamageMultiplierPct
+                    TowerDamageMultiplierPct = b.UnitTowerDamageMultiplierPct,
+                    SplashRadius = b.UnitSplashRadius,
+                    Bounty = b.Bounty
                 });
             }
 

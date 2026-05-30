@@ -15,6 +15,7 @@ public static class TestRunner
         TestMatchSimulation.RunAll();
         TestStrategicDepth.RunAll();
         TestStrategicAI.RunAll();
+        TestSpamBenchmark.RunAll();
 
         Console.WriteLine("\n=== ALL TESTS PASSED ===");
     }

@@ -18,6 +18,8 @@ public class UnitState
     public int ArmorType;
     public int DamageType;
     public int TowerDamageMultiplierPct;
+    public int SplashRadius;        // 0 = single-target; >0 deals AoE around the primary target
+    public int Bounty;              // gold awarded to whoever lands the killing blow
     public int PositionX;           // 1D lane position (integer)
     public int Direction;           // +1 (toward enemy base) or -1
     public int AgeMs;

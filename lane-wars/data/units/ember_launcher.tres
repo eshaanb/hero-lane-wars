@@ -13,6 +13,7 @@ MoveSpeedUnits = 40
 Range = 230
 ArmorType = 2
 DamageType = 2
+SplashRadius = 70
 SpawnTimeMs = 13000
 TowerDamageMultiplierPct = 240
 SpritePath = "res://assets/sprites/units/ember_launcher_blue.png"

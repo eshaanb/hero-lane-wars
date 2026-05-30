@@ -19,5 +19,7 @@ public partial class UnitData : Resource
     [Export] public DamageType DamageType { get; set; } = DamageType.Physical;
     [Export] public int SpawnTimeMs { get; set; } = 4000;
     [Export] public int TowerDamageMultiplierPct { get; set; } = 100;
+    [Export] public int SplashRadius { get; set; } = 0;
+    [Export] public int Bounty { get; set; } = 0;
     [Export] public string SpritePath { get; set; } = "";
 }

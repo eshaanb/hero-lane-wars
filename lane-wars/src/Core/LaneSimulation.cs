@@ -27,6 +27,8 @@ public class LaneSimulation
     private readonly int[] _towerAttackTimerMs = new int[2];
     private readonly int[] _towerTargetUnitId = new int[2] { -1, -1 };
     private readonly int[] _towerRecentAttackMs = new int[2];
+    private readonly int[] _towerSplashRadius = new int[2];
+    private readonly int[] _lastTickBounty = new int[2];
     private const int MeleeRange = 50;
 
     public IReadOnlyList<UnitState> Units => _units;
@@ -58,6 +60,13 @@ public class LaneSimulation
 
     public int GetTowerTargetUnitId(int player) => player >= 0 && player <= 1 ? _towerTargetUnitId[player] : -1;
     public int GetTowerRecentAttackMs(int player) => player >= 0 && player <= 1 ? _towerRecentAttackMs[player] : 0;
+    public int GetLastTickBounty(int player) => player >= 0 && player <= 1 ? _lastTickBounty[player] : 0;
+    public int GetTowerAttackDamage(int player) => (player >= 0 && player <= 1) ? _towerAttackDamage[player] : 0;
+    public int GetTowerAttackRange(int player) => (player >= 0 && player <= 1) ? _towerAttackRange[player] : 0;
+    public int GetTowerSplashRadius(int player) => (player >= 0 && player <= 1) ? _towerSplashRadius[player] : 0;
+    public void AddTowerAttackDamage(int player, int delta) { if (player >= 0 && player <= 1) _towerAttackDamage[player] += delta; }
+    public void AddTowerAttackRange(int player, int delta) { if (player >= 0 && player <= 1) _towerAttackRange[player] += delta; }
+    public void AddTowerSplashRadius(int player, int delta) { if (player >= 0 && player <= 1) _towerSplashRadius[player] += delta; }
 
     /// <summary>
     /// Spawn a unit from a UnitSpawnRequest. Returns the assigned unit ID.
@@ -79,6 +88,8 @@ public class LaneSimulation
             Range = req.Range,
             ArmorType = req.ArmorType,
             DamageType = req.DamageType,
+            SplashRadius = req.SplashRadius,
+            Bounty = req.Bounty,
             TowerDamageMultiplierPct = req.TowerDamageMultiplierPct > 0 ? req.TowerDamageMultiplierPct : 100,
             PositionX = req.StartPositionX,
             Direction = req.Direction,
@@ -102,6 +113,9 @@ public class LaneSimulation
     /// </summary>
     public List<TowerDamage> Tick(int tickMs)
     {
+        _lastTickBounty[0] = 0;
+        _lastTickBounty[1] = 0;
+
         // ── Step 1: Move ──
         // Units with no target move along the lane.
         for (int i = 0; i < _units.Count; i++)
@@ -219,7 +233,11 @@ public class LaneSimulation
                     if (target.Hp <= 0)
                     {
                         target.IsAlive = false;
+                        _lastTickBounty[unit.OwnerPlayer] += target.Bounty;
                     }
+
+                    if (unit.SplashRadius > 0)
+                        ApplySplashDamage(unit, target, unit.SplashRadius);
                 }
 
                 // Reset the cooldown timer
@@ -348,10 +366,72 @@ public class LaneSimulation
 
         target.Hp -= _towerAttackDamage[towerOwner];
         if (target.Hp <= 0)
+        {
             target.IsAlive = false;
+            _lastTickBounty[towerOwner] += target.Bounty;
+        }
+
+        if (_towerSplashRadius[towerOwner] > 0)
+            ApplyTowerSplash(towerOwner, enemyOwner, target, _towerSplashRadius[towerOwner]);
 
         _towerAttackTimerMs[towerOwner] = _towerAttackCooldownMs[towerOwner];
         _towerRecentAttackMs[towerOwner] = 120;
+    }
+
+    /// <summary>
+    /// Apply splash damage to all living enemy units within <paramref name="radius"/>
+    /// of the primary target's position, excluding the primary target itself.
+    /// </summary>
+    private void ApplySplashDamage(UnitState attacker, UnitState primaryTarget, int radius)
+    {
+        for (int j = 0; j < _units.Count; j++)
+        {
+            UnitState other = _units[j];
+            if (!other.IsAlive)
+                continue;
+            if (other.OwnerPlayer == attacker.OwnerPlayer)
+                continue;
+            if (other.UnitId == primaryTarget.UnitId)
+                continue;
+
+            int dist = Math.Abs(other.PositionX - primaryTarget.PositionX);
+            if (dist > radius)
+                continue;
+
+            int damage = CombatResolver.CalculateDamage(attacker.Damage, attacker.DamageType, other.ArmorType);
+            other.Hp -= damage;
+            if (other.Hp <= 0)
+            {
+                other.IsAlive = false;
+                _lastTickBounty[attacker.OwnerPlayer] += other.Bounty;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tower splash: damage living enemy units within <paramref name="radius"/> of the tower's
+    /// primary target (excluding the primary), using the tower's flat attack damage.
+    /// </summary>
+    private void ApplyTowerSplash(int towerOwner, int enemyOwner, UnitState primaryTarget, int radius)
+    {
+        int damage = _towerAttackDamage[towerOwner];
+        for (int i = 0; i < _units.Count; i++)
+        {
+            UnitState other = _units[i];
+            if (!other.IsAlive || other.OwnerPlayer != enemyOwner)
+                continue;
+            if (other.UnitId == primaryTarget.UnitId)
+                continue;
+            if (Math.Abs(other.PositionX - primaryTarget.PositionX) > radius)
+                continue;
+
+            other.Hp -= damage;
+            if (other.Hp <= 0)
+            {
+                other.IsAlive = false;
+                _lastTickBounty[towerOwner] += other.Bounty;
+            }
+        }
     }
 
     /// <summary>Find a unit by ID using ordered linear search.</summary>

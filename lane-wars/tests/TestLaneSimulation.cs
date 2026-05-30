@@ -14,7 +14,118 @@ public static class TestLaneSimulation
         TestUnitsEngageAndFight();
         TestUnitAttacksTowerAtLaneEnd();
         TestTowerRetaliatesAgainstNearbyEnemy();
+        TestSplashDamageHitsStackedEnemies();
+        TestSingleTargetDoesNotSplash();
+        TestKillAwardsBountyToKiller();
+        TestTowerSplashHitsMultipleEnemies();
         Console.WriteLine("All LaneSimulation tests passed!");
+    }
+
+    private static void TestTowerSplashHitsMultipleEnemies()
+    {
+        // Player 0 tower at position 0 with splash; three stacked enemies in range.
+        var lane = new LaneSimulation(1000, towerAttackDamage: 30, towerAttackCooldownMs: 100, towerAttackRange: 120);
+        lane.AddTowerSplashRadius(0, 60);
+
+        int a = lane.SpawnUnit(NoDamageEnemy(40));
+        int b = lane.SpawnUnit(NoDamageEnemy(60));
+        int c = lane.SpawnUnit(NoDamageEnemy(80));
+
+        lane.Tick(100);
+
+        Assert(UnitHp(lane, a) == 70, $"Tower primary should take 30, got {UnitHp(lane, a)}");
+        Assert(UnitHp(lane, b) == 70, $"Tower splash should hit enemy at 60, got {UnitHp(lane, b)}");
+        Assert(UnitHp(lane, c) == 70, $"Tower splash should hit enemy at 80, got {UnitHp(lane, c)}");
+    }
+
+    private static void TestKillAwardsBountyToKiller()
+    {
+        var lane = new LaneSimulation(1000);
+        // Player 0 attacker one-shots the victim; carries no bounty itself.
+        lane.SpawnUnit(new UnitSpawnRequest
+        {
+            OwnerPlayer = 0, Hp = 1000, Damage = 1000, AttackCooldownMs = 100,
+            MoveSpeed = 0, Range = 0, ArmorType = 1, DamageType = 0,
+            Direction = 1, StartPositionX = 480, Bounty = 0
+        });
+        // Player 1 victim worth 7 bounty, deals no damage back.
+        lane.SpawnUnit(new UnitSpawnRequest
+        {
+            OwnerPlayer = 1, Hp = 10, Damage = 0, AttackCooldownMs = 1000,
+            MoveSpeed = 0, Range = 0, ArmorType = 1, DamageType = 0,
+            Direction = -1, StartPositionX = 500, Bounty = 7
+        });
+
+        int p0Bounty = 0, p1Bounty = 0;
+        for (int i = 0; i < 5; i++)
+        {
+            lane.Tick(100);
+            p0Bounty += lane.GetLastTickBounty(0);
+            p1Bounty += lane.GetLastTickBounty(1);
+        }
+
+        Assert(p0Bounty == 7, $"Killer (player 0) should earn the victim's 7 bounty, got {p0Bounty}");
+        Assert(p1Bounty == 0, $"Victim's owner should earn no bounty, got {p1Bounty}");
+    }
+
+    private static void TestSplashDamageHitsStackedEnemies()
+    {
+        var lane = new LaneSimulation(1000);
+        // Player 0 splash attacker at 480 (melee). Big HP so it survives; one hit per tick.
+        lane.SpawnUnit(new UnitSpawnRequest
+        {
+            OwnerPlayer = 0, Hp = 1000, Damage = 50, AttackCooldownMs = 1000,
+            MoveSpeed = 0, Range = 0, ArmorType = 1, DamageType = 0,
+            Direction = 1, StartPositionX = 480, SplashRadius = 60
+        });
+        // Three stacked player-1 enemies that deal no damage back.
+        int primaryId = lane.SpawnUnit(NoDamageEnemy(500));
+        int splash1Id = lane.SpawnUnit(NoDamageEnemy(510));
+        int splash2Id = lane.SpawnUnit(NoDamageEnemy(520));
+
+        lane.Tick(100);
+
+        // Primary takes one direct hit; splash targets each take one hit (no double-hit on primary).
+        Assert(UnitHp(lane, primaryId) == 50, $"Primary target should take one 50 hit, got {UnitHp(lane, primaryId)}");
+        Assert(UnitHp(lane, splash1Id) == 50, $"Splash should hit enemy at 510, got {UnitHp(lane, splash1Id)}");
+        Assert(UnitHp(lane, splash2Id) == 50, $"Splash should hit enemy at 520, got {UnitHp(lane, splash2Id)}");
+    }
+
+    private static void TestSingleTargetDoesNotSplash()
+    {
+        var lane = new LaneSimulation(1000);
+        // SplashRadius 0 (default) attacker should only hit its primary target.
+        lane.SpawnUnit(new UnitSpawnRequest
+        {
+            OwnerPlayer = 0, Hp = 1000, Damage = 50, AttackCooldownMs = 1000,
+            MoveSpeed = 0, Range = 0, ArmorType = 1, DamageType = 0,
+            Direction = 1, StartPositionX = 480
+        });
+        int primaryId = lane.SpawnUnit(NoDamageEnemy(500));
+        int neighborId = lane.SpawnUnit(NoDamageEnemy(510));
+
+        lane.Tick(100);
+
+        Assert(UnitHp(lane, primaryId) == 50, $"Primary target should take 50, got {UnitHp(lane, primaryId)}");
+        Assert(UnitHp(lane, neighborId) == 100, $"Non-splash attacker must not hit the neighbor, got {UnitHp(lane, neighborId)}");
+    }
+
+    private static UnitSpawnRequest NoDamageEnemy(int positionX)
+    {
+        return new UnitSpawnRequest
+        {
+            OwnerPlayer = 1, Hp = 100, Damage = 0, AttackCooldownMs = 1000,
+            MoveSpeed = 0, Range = 0, ArmorType = 1, DamageType = 0,
+            Direction = -1, StartPositionX = positionX
+        };
+    }
+
+    private static int UnitHp(LaneSimulation lane, int unitId)
+    {
+        foreach (var u in lane.Units)
+            if (u.UnitId == unitId)
+                return u.Hp;
+        return -1;
     }
 
     private static void TestUnitWalks()

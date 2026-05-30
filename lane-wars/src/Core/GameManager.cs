@@ -31,6 +31,7 @@ public partial class GameManager : Node2D
     private BuildingPanel _buildingPanel = null!;
     private EndGameOverlay _endGameOverlay = null!;
     private RaceSelectOverlay _raceSelectOverlay = null!;
+    private TowerUpgradePanel _towerUpgradePanel = null!;
     private Sprite2D _p1TowerSprite = null!;
     private Sprite2D _p2TowerSprite = null!;
     private ProgressBar _p1TowerHpBar = null!;
@@ -56,6 +57,9 @@ public partial class GameManager : Node2D
         _buildingPanel = GetNode<BuildingPanel>("UI/BuildingPanel");
         _endGameOverlay = GetNode<EndGameOverlay>("UI/EndGameOverlay");
         _raceSelectOverlay = GetNode<RaceSelectOverlay>("UI/RaceSelectOverlay");
+        _towerUpgradePanel = new TowerUpgradePanel();
+        GetNode("UI").AddChild(_towerUpgradePanel);
+        _towerUpgradePanel.Visible = false;
         _p1TowerSprite = GetNode<Sprite2D>("Player1Side/Base");
         _p2TowerSprite = GetNode<Sprite2D>("Player2Side/Base");
         _p1TowerHpBar = GetNode<ProgressBar>("Player1Side/TowerHpBar");
@@ -104,6 +108,8 @@ public partial class GameManager : Node2D
         _hud.UpdateDisplay(_sim, 0); // Player 0 is human
         UpdateTowerVisuals();
         _buildingPanel.UpdateAffordability(_sim, 0);
+        if (_towerUpgradePanel.Visible)
+            _towerUpgradePanel.Refresh();
         _p1BuildZone.RefreshVisuals(_sim, 0);
         _p2BuildZone.RefreshVisuals(_sim, 1);
 
@@ -126,10 +132,15 @@ public partial class GameManager : Node2D
             {
                 TryPlaceBuilding(GetGlobalMousePosition());
             }
+            else if (IsPointOnPlayerTower(GetGlobalMousePosition()))
+            {
+                _towerUpgradePanel.Toggle();
+            }
         }
         if (@event is InputEventKey key && key.Pressed && key.Keycode == Key.Escape)
         {
             CancelPlacement();
+            _towerUpgradePanel.HidePanel();
         }
     }
 
@@ -215,6 +226,12 @@ public partial class GameManager : Node2D
             info.SpawnTimeMs = data.SpawnedUnit.SpawnTimeMs;
             info.UnitSpritePath = data.SpawnedUnit.SpritePath;
             info.UnitTowerDamageMultiplierPct = data.SpawnedUnit.TowerDamageMultiplierPct;
+            info.UnitSplashRadius = data.SpawnedUnit.SplashRadius;
+            // Bounty defaults to a fraction of the building cost so killing pays off relative
+            // to the investment; an explicit per-unit Bounty in the .tres overrides this.
+            info.Bounty = data.SpawnedUnit.Bounty > 0
+                ? data.SpawnedUnit.Bounty
+                : System.Math.Max(1, data.GoldCost / 5);
         }
         return info;
     }
@@ -249,6 +266,15 @@ public partial class GameManager : Node2D
             _selectedBuilding.GridWidth,
             _selectedBuilding.GridHeight,
             canPlace);
+    }
+
+    private bool IsPointOnPlayerTower(Vector2 worldPoint)
+    {
+        if (_p1TowerSprite?.Texture == null)
+            return false;
+        Vector2 size = _p1TowerSprite.Texture.GetSize() * _p1TowerSprite.GlobalScale;
+        Rect2 rect = new Rect2(_p1TowerSprite.GlobalPosition - size / 2f, size).Grow(16f);
+        return rect.HasPoint(worldPoint);
     }
 
     private void UpdateTowerVisuals()
@@ -363,6 +389,7 @@ public partial class GameManager : Node2D
 
         _buildingPanel.Initialize(_sim, 0);
         _buildingPanel.BuildingClicked += OnBuildingSelected;
+        _towerUpgradePanel.Initialize(_sim, 0);
         _buildingPanel.Visible = true;
         _hud.SetRaceNames(PlayerRace?.RaceName ?? "Custom", EnemyRace?.RaceName ?? "Custom");
         ApplyRaceTowerVisuals();
