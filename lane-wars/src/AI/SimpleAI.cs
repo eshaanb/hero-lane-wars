@@ -70,6 +70,8 @@ public class SimpleAI
         if (TryDefenseOverride(sim, playerIndex))
             return;
 
+        TryCounterThreat(sim, playerIndex);
+
         switch (Plan)
         {
             case AiStrategyPlan.EconomyGreed:
@@ -176,6 +178,42 @@ public class SimpleAI
             _ => _siegeInfo ?? _supportInfo ?? _tankInfo
         };
     }
+
+    /// <summary>
+    /// When the enemy is mounting clear pressure (especially swarm), specialize the tower
+    /// toward the matching counter and level it — the universal splash answer every plan
+    /// can reach, even ones that never buy counter units. Keeps a gold reserve so emergency
+    /// defense and core production are never starved.
+    /// </summary>
+    private void TryCounterThreat(MatchSimulation sim, int playerIndex)
+    {
+        ScoutRead enemy = sim.GetScoutRead(1 - playerIndex);
+        bool threatened = enemy.Pressure == ScoutSignalLevel.High
+            || enemy.CompositionHint == CompositionHint.Swarm;
+        if (!threatened)
+            return;
+
+        const int reserve = 10;
+        TowerBranch branch = sim.GetTowerBranch(playerIndex);
+        if (branch == TowerBranch.None)
+            branch = TowerBranchFor(enemy.CompositionHint);
+
+        // Scattershot/Ballista only matter if the tower actually fires; don't waste gold on them otherwise.
+        bool attackBranch = branch == TowerBranch.Scattershot || branch == TowerBranch.Ballista;
+        if (attackBranch && sim.GetTowerAttackDamage(playerIndex) <= 0)
+            return;
+
+        int towerCost = sim.GetTowerUpgradeCost(playerIndex, branch);
+        if (towerCost >= 0 && sim.GetGold(playerIndex) - towerCost >= reserve)
+            sim.UpgradeTower(playerIndex, branch);
+    }
+
+    private static TowerBranch TowerBranchFor(CompositionHint hint) => hint switch
+    {
+        CompositionHint.Swarm => TowerBranch.Scattershot,
+        CompositionHint.Heavy => TowerBranch.Ballista,
+        _ => TowerBranch.Bulwark
+    };
 
     private bool TryDefenseOverride(MatchSimulation sim, int playerIndex)
     {

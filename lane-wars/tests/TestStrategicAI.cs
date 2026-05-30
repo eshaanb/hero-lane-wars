@@ -18,7 +18,62 @@ public static class TestStrategicAI
         TestRushFallsBehindIfHeld();
         TestTechIsVulnerableBeforeItArrives();
         TestTechPunishesPredictableMonoComposition();
+        TestStrongAiBeatsNaiveSpam();
         Console.WriteLine("All StrategicAI tests passed!");
+    }
+
+    private static void TestStrongAiBeatsNaiveSpam()
+    {
+        // A strong AI must punish naive spam no matter which personality it is playing.
+        AssertAiBeatsNaiveSpam(AiStrategyPlan.TempoRush);
+        AssertAiBeatsNaiveSpam(AiStrategyPlan.EconomyGreed);
+        AssertAiBeatsNaiveSpam(AiStrategyPlan.TechCounterScaling);
+    }
+
+    private static void AssertAiBeatsNaiveSpam(AiStrategyPlan plan)
+    {
+        // Towers must actually attack for the tower-defense mechanic to matter (NewSim leaves them at 0).
+        var sim = new MatchSimulation(
+            startingGold: 100, baseIncomePerTick: 10, incomeTickMs: 10000,
+            towerHp: 400, buildZoneWidth: 8, buildZoneHeight: 4,
+            simTickMs: 100, laneLengthUnits: 600,
+            towerAttackDamage: 18, towerAttackCooldownMs: 1000, towerAttackRange: 220);
+
+        // Naive spammer: floods the cheapest light-armor swarm unit, filling the grid.
+        var swarm = UnitInfo("Swarm", StrategicRole.Pressure, 25, CompositionHint.Swarm, hp: 60, damage: 8, spawnTimeMs: 2000);
+        swarm.UnitArmorType = 0; // Light
+        swarm.Bounty = 5;        // realistic: 25g unit yields ~cost/5 to its killer
+
+        // AI has a basic core spawner plus a splash siege counter available to it.
+        var core = UnitInfo("Core", StrategicRole.Pressure, 25, CompositionHint.Mixed, hp: 80, damage: 10, spawnTimeMs: 2000);
+        var siege = UnitInfo("Siege", StrategicRole.Tech, 60, CompositionHint.Splash, hp: 130, damage: 20, spawnTimeMs: 3000);
+        siege.UnitSplashRadius = 45;
+        siege.UnitDamageType = 1; // Piercing: 150% vs Light swarm
+        var ai = new SimpleAI(1, core, siegeInfo: siege, thinkIntervalTicks: 0, plan: plan);
+
+        int cell = 0;
+        for (int tick = 0; tick < 4000 && !sim.IsMatchOver(); tick++)
+        {
+            cell = SpamCheapest(sim, 0, swarm, cell);
+            ai.Think(sim, 1);
+            sim.ProcessTick();
+        }
+
+        Assert(sim.GetWinner() == 1 || sim.GetTowerHp(1) > sim.GetTowerHp(0),
+            $"{plan} AI should beat naive spam. winner={sim.GetWinner()}, spammerTower={sim.GetTowerHp(0)}, aiTower={sim.GetTowerHp(1)}");
+    }
+
+    private static int SpamCheapest(MatchSimulation sim, int player, BuildingInfo spawner, int cell)
+    {
+        const int gridWidth = 8;
+        const int gridCells = 32;
+        if (cell >= gridCells)
+            return cell;
+        if (sim.GetGold(player) < spawner.GoldCost)
+            return cell;
+        int x = cell % gridWidth;
+        int y = cell / gridWidth;
+        return sim.PlaceBuilding(player, x, y, spawner) ? cell + 1 : cell;
     }
 
     private static void TestRushOpensPressureBeforeEconomy()
