@@ -8,6 +8,10 @@ public static class TestRunner
     {
         Console.WriteLine("Running Lane Wars tests...\n");
 
+        // Opt-in balance tournament (analysis tool): set LANEWARS_BALANCE=1 to run.
+        if (Environment.GetEnvironmentVariable("LANEWARS_BALANCE") != null)
+            BalanceHarness.Run();
+
         TestFixedMath.RunAll();
         TestCombatResolver.RunAll();
         TestEconomy.RunAll();
