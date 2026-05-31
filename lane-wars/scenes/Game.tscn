@@ -36,7 +36,8 @@ ForgeData = ExtResource("14")
 EconomyBuildingData = ExtResource("10")
 
 [node name="Camera" type="Camera2D" parent="."]
-position = Vector2(640, 360)
+position = Vector2(648, 340)
+zoom = Vector2(0.88, 0.88)
 
 [node name="Lane" type="Node2D" parent="."]
 script = ExtResource("2")

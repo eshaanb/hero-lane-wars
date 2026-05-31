@@ -137,7 +137,7 @@ public partial class LaneRenderer : Node2D
             }
 
             Vector2 offset = visualOffsets.TryGetValue(unit.UnitId, out var foundOffset) ? foundOffset : Vector2.Zero;
-            visualPositions[unit.UnitId] = UnitRenderer.CalculateScreenPosition(unit, offset);
+            visualPositions[unit.UnitId] = UnitRenderer.CalculateScreenPosition(unit, sim.LaneLengthUnits, offset);
             _renderers[unit.UnitId].SyncFromSim(unit, sim.LaneLengthUnits, offset);
         }
 

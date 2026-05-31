@@ -67,7 +67,7 @@ public partial class GameManager : Node2D
 
         _p1BuildZone.Initialize(Config.BuildZoneWidth, Config.BuildZoneHeight);
         _p1BuildZone.ObscureOccupiedCells = false;
-        _p2BuildZone.ObscureOccupiedCells = true;
+        _p2BuildZone.ObscureOccupiedCells = false; // reveal the enemy field so the player can scout and plan counters
         _p2BuildZone.Initialize(Config.BuildZoneWidth, Config.BuildZoneHeight);
 
         // Wire UI events
@@ -163,16 +163,8 @@ public partial class GameManager : Node2D
         {
             _p1BuildZone.RefreshVisuals(_sim, 0);
             _buildingPanel.UpdateAffordability(_sim, 0);
-            if (_sim.GetGold(0) < selectedBuilding.GoldCost ||
-                !_sim.MeetsRequirements(0, selectedBuilding.RequiredBuildingNames))
-            {
-                CancelPlacement();
-            }
-            else
-            {
-                _buildingPanel.SetSelectedBuilding(selectedBuilding);
-                UpdatePlacementPreview();
-            }
+            // One click = one build: deselect after placing rather than staying in placement mode.
+            CancelPlacement();
         }
     }
 
@@ -273,7 +265,7 @@ public partial class GameManager : Node2D
         if (_p1TowerSprite?.Texture == null)
             return false;
         Vector2 size = _p1TowerSprite.Texture.GetSize() * _p1TowerSprite.GlobalScale;
-        Rect2 rect = new Rect2(_p1TowerSprite.GlobalPosition - size / 2f, size).Grow(16f);
+        Rect2 rect = new Rect2(_p1TowerSprite.GlobalPosition - size / 2f, size).Grow(28f);
         return rect.HasPoint(worldPoint);
     }
 
