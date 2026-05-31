@@ -32,6 +32,7 @@ public partial class GameManager : Node2D
     private EndGameOverlay _endGameOverlay = null!;
     private RaceSelectOverlay _raceSelectOverlay = null!;
     private TowerUpgradePanel _towerUpgradePanel = null!;
+    private CounterMatrixOverlay _counterOverlay = null!;
     private Sprite2D _p1TowerSprite = null!;
     private Sprite2D _p2TowerSprite = null!;
     private ProgressBar _p1TowerHpBar = null!;
@@ -60,6 +61,9 @@ public partial class GameManager : Node2D
         _towerUpgradePanel = new TowerUpgradePanel();
         GetNode("UI").AddChild(_towerUpgradePanel);
         _towerUpgradePanel.Visible = false;
+        _counterOverlay = new CounterMatrixOverlay();
+        GetNode("UI").AddChild(_counterOverlay);
+        _counterOverlay.Initialize();
         _p1TowerSprite = GetNode<Sprite2D>("Player1Side/Base");
         _p2TowerSprite = GetNode<Sprite2D>("Player2Side/Base");
         _p1TowerHpBar = GetNode<ProgressBar>("Player1Side/TowerHpBar");
@@ -121,6 +125,22 @@ public partial class GameManager : Node2D
         }
     }
 
+    public override void _Input(InputEvent @event)
+    {
+        if (!_matchStarted)
+            return;
+
+        if (@event is InputEventMouseButton mb &&
+            mb.Pressed &&
+            mb.ButtonIndex == MouseButton.Left &&
+            _towerUpgradePanel.Visible &&
+            !_towerUpgradePanel.ContainsViewportPoint(mb.Position) &&
+            !IsPointOnPlayerTower(GetGlobalMousePosition()))
+        {
+            _towerUpgradePanel.HidePanel();
+        }
+    }
+
     public override void _UnhandledInput(InputEvent @event)
     {
         if (!_matchStarted)
@@ -137,10 +157,18 @@ public partial class GameManager : Node2D
                 _towerUpgradePanel.Toggle();
             }
         }
-        if (@event is InputEventKey key && key.Pressed && key.Keycode == Key.Escape)
+        if (@event is InputEventKey key && key.Pressed)
         {
-            CancelPlacement();
-            _towerUpgradePanel.HidePanel();
+            if (key.Keycode == Key.Escape)
+            {
+                CancelPlacement();
+                _towerUpgradePanel.HidePanel();
+                _counterOverlay.HideOverlay();
+            }
+            else if (key.Keycode == Key.C)
+            {
+                _counterOverlay.Toggle();
+            }
         }
     }
 

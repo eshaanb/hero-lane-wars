@@ -81,6 +81,11 @@ public partial class TowerUpgradePanel : PanelContainer
 
     public void HidePanel() => Visible = false;
 
+    public bool ContainsViewportPoint(Vector2 point)
+    {
+        return Visible && GetGlobalRect().HasPoint(point);
+    }
+
     public void Refresh()
     {
         if (_sim == null)

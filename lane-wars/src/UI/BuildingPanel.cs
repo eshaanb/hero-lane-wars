@@ -170,7 +170,12 @@ public partial class BuildingPanel : PanelContainer
         string towerBonusText = data.SpawnedUnit.TowerDamageMultiplierPct != 100
             ? $" Tower DMG x{data.SpawnedUnit.TowerDamageMultiplierPct / 100.0f:0.#}."
             : "";
-        return $"{data.BuildingName}: spawns {data.SpawnedUnit.UnitName} every {FormatSeconds(data.SpawnedUnit.SpawnTimeMs)}.{buildDelayText} HP {data.SpawnedUnit.Hp}, DMG {data.SpawnedUnit.Damage}.{towerBonusText}{requirementText}{unlockText}{missingText}";
+        int dmgType = (int)data.SpawnedUnit.DamageType;
+        int armorType = (int)data.SpawnedUnit.ArmorType;
+        string counterText =
+            $"\n{CounterInfo.DamageName(dmgType)} damage — {CounterInfo.DamageSummary(dmgType)}." +
+            $"\n{CounterInfo.ArmorName(armorType)} armor — {CounterInfo.ArmorSummary(armorType)}.";
+        return $"{data.BuildingName}: spawns {data.SpawnedUnit.UnitName} every {FormatSeconds(data.SpawnedUnit.SpawnTimeMs)}.{buildDelayText} HP {data.SpawnedUnit.Hp}, DMG {data.SpawnedUnit.Damage}.{towerBonusText}{requirementText}{unlockText}{missingText}{counterText}";
     }
 
     private void UpdateStatusLabel()
